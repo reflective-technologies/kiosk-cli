@@ -15,9 +15,10 @@ const logo = `
 `
 
 var rootCmd = &cobra.Command{
-	Use:   "kiosk",
-	Short: "Kiosk CLI",
-	Long:  logo + `The app store for Claude Code apps.`,
+	Use:     "kiosk",
+	Short:   "Kiosk CLI",
+	Long:    logo + `The app store for Claude Code apps.`,
+	Version: Version,
 }
 
 func Execute() {
