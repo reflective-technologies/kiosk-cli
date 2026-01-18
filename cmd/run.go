@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
@@ -117,9 +118,20 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 
 	appPath := config.AppPath(parts[0], parts[1])
 
-	// Create app directory
-	if err := os.MkdirAll(appPath, 0755); err != nil {
-		return fmt.Errorf("failed to create app directory: %w", err)
+	parentDir := filepath.Dir(appPath)
+	if err := os.MkdirAll(parentDir, 0755); err != nil {
+		return fmt.Errorf("failed to create app parent directory: %w", err)
+	}
+
+	if _, err := os.Stat(appPath); err == nil {
+		return fmt.Errorf("app already exists at %s (try removing it first)", appPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check app path: %w", err)
+	}
+
+	fmt.Printf("Cloning %s...\n", app.GitUrl)
+	if err := cloneRepo(app.GitUrl, appPath); err != nil {
+		return err
 	}
 
 	// Register in index
@@ -154,6 +166,21 @@ func extractOrgRepo(gitUrl string) string {
 		}
 	}
 	return ""
+}
+
+func cloneRepo(gitURL, dest string) error {
+	if gitURL == "" {
+		return fmt.Errorf("app has no git URL to clone")
+	}
+
+	cmd := exec.Command("git", "clone", gitURL, dest)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to clone repo: %w", err)
+	}
+	return nil
 }
 
 // execClaude runs claude in the given directory with the given prompt
