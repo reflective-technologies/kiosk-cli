@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
@@ -44,19 +43,8 @@ Claude Code will guide you through the publishing process, including:
 
 		// Exec claude with the prompt in the current directory
 		fmt.Println("Starting Claude Code...")
-		return execClaudePublish(cwd, prompt)
+		return execClaude(cwd, prompt)
 	},
-}
-
-// execClaudePublish runs claude in the given directory with the publish prompt
-func execClaudePublish(dir, prompt string) error {
-	cmd := exec.Command("claude", prompt)
-	cmd.Dir = dir
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
 }
 
 func init() {

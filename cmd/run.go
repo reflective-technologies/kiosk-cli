@@ -183,15 +183,29 @@ func cloneRepo(gitURL, dest string) error {
 	return nil
 }
 
-// execClaude runs claude in the given directory with the given prompt
-func execClaude(dir, prompt string) error {
-	cmd := exec.Command("claude", prompt)
+func runCommand(cmd *exec.Cmd, dir string) error {
 	cmd.Dir = dir
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// execClaude runs claude in the given directory with the given prompt
+func execClaude(dir, prompt string) error {
+	if _, err := exec.LookPath("claude"); err == nil {
+		cmd := exec.Command("claude", prompt)
+		return runCommand(cmd, dir)
+	}
+
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "sh"
+	}
+
+	cmd := exec.Command(shell, "-i", "-c", "claude \"$@\"", "claude", prompt)
+	return runCommand(cmd, dir)
 }
 
 func init() {
