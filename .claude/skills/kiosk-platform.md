@@ -23,6 +23,8 @@ Base URL: `https://kiosk.app` (or local dev server)
 | PUT | `/api/kiosk/[appId]` | Update an existing app |
 | DELETE | `/api/kiosk/[appId]` | Delete an app |
 | POST | `/api/kiosk/[appId]/refresh` | Refresh cached Kiosk.md from repository |
+| GET | `/api/create` | Get publishing prompt for Claude Code |
+| GET | `/api/kiosk/[appId]/install` | Get installation prompt for Claude Code |
 
 ### App Schema
 
