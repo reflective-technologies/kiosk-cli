@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Purpose
+
+This CLI is used to interact with the Kiosk app platform - an App Store for Claude Code applications. See `.claude/skills/kiosk-platform.md` for API details.
+
+## Issue Tracking
+
+This project uses **bd** (beads) for issue tracking. See `AGENTS.md` for workflow details.
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd close <id>         # Complete work
+```
+
 ## Build Commands
 
 ```bash
