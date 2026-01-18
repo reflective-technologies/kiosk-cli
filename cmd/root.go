@@ -6,10 +6,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const logo = `
+   ____ ___   ________  ________  ________  ____ ___
+  ╱    ╱   ╲ ╱        ╲╱        ╲╱        ╲╱    ╱   ╲
+ ╱         ╱_╱       ╱╱         ╱        _╱         ╱
+╱╱       _╱╱         ╱         ╱-        ╱        _╱
+╲╲___╱___╱ ╲________╱╲________╱╲________╱╲____╱___╱
+`
+
 var rootCmd = &cobra.Command{
 	Use:   "kiosk",
 	Short: "Kiosk CLI",
-	Long:  `Kiosk is a command-line interface tool.`,
+	Long:  logo + `The app store for Claude Code apps.`,
 }
 
 func Execute() {
