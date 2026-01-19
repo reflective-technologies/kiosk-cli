@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
+	"github.com/reflective-technologies/kiosk-cli/internal/auth"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +21,11 @@ Claude Code will guide you through the publishing process, including:
   - Creating a Kiosk.md if needed
   - Publishing to kiosk.app`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check authentication
+		if !auth.IsLoggedIn() {
+			return fmt.Errorf("not logged in, run 'kiosk login' first")
+		}
+
 		// Load config
 		cfg, err := config.Load()
 		if err != nil {
