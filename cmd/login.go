@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var loginTimeout time.Duration
+
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with GitHub",
@@ -22,6 +24,7 @@ The CLI will wait for you to complete the authorization in your browser.`,
 }
 
 func init() {
+	loginCmd.Flags().DurationVar(&loginTimeout, "timeout", auth.DefaultPollTimeout, "timeout for waiting for authorization")
 	rootCmd.AddCommand(loginCmd)
 }
 
@@ -63,7 +66,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	fmt.Println("Waiting for authorization...")
 
 	// Poll for auth completion
-	authResp, err := flow.PollForAuth(deviceCode.DeviceCode, deviceCode.Interval)
+	authResp, err := flow.PollForAuth(deviceCode.DeviceCode, deviceCode.Interval, loginTimeout)
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}

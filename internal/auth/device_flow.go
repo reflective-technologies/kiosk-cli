@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
+
+// DefaultPollTimeout is the default timeout for waiting for user authorization
+const DefaultPollTimeout = 5 * time.Minute
 
 // DeviceCodeResponse represents the response from requesting a device code
 // Field names match the Kiosk API response (camelCase)
@@ -93,11 +97,34 @@ func (d *DeviceFlow) RequestDeviceCode() (*DeviceCodeResponse, error) {
 	return &result, nil
 }
 
-// PollForAuth polls Kiosk API for auth completion until the user authorizes or an error occurs
-func (d *DeviceFlow) PollForAuth(deviceCode string, interval int) (*AuthResponse, error) {
+// PollForAuth polls Kiosk API for auth completion until the user authorizes or an error occurs.
+// timeout specifies how long to wait for authorization (use DefaultPollTimeout or 0 for default).
+func (d *DeviceFlow) PollForAuth(deviceCode string, interval int, timeout time.Duration) (*AuthResponse, error) {
+	if timeout <= 0 {
+		timeout = DefaultPollTimeout
+	}
+
 	pollInterval := time.Duration(interval) * time.Second
+	timeoutCh := time.After(timeout)
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	// Check immediately on first iteration
+	checkNow := make(chan struct{}, 1)
+	checkNow <- struct{}{}
 
 	for {
+		select {
+		case <-timeoutCh:
+			return nil, fmt.Errorf("authorization timed out after %v, please run login again", timeout)
+
+		case <-checkNow:
+			// First check, fall through to auth check
+
+		case <-ticker.C:
+			// Subsequent checks on interval
+		}
+
 		authResp, err := d.checkAuth(deviceCode)
 		if err != nil {
 			// Check if it's a polling error we should handle
@@ -105,12 +132,12 @@ func (d *DeviceFlow) PollForAuth(deviceCode string, interval int) (*AuthResponse
 				switch pollErr.Code {
 				case "authorization_pending":
 					// User hasn't authorized yet, keep polling
-					time.Sleep(pollInterval)
 					continue
 				case "slow_down":
 					// We're polling too fast, increase interval
+					ticker.Stop()
 					pollInterval += 5 * time.Second
-					time.Sleep(pollInterval)
+					ticker = time.NewTicker(pollInterval)
 					continue
 				case "expired_token":
 					return nil, fmt.Errorf("device code expired, please run login again")
@@ -125,7 +152,6 @@ func (d *DeviceFlow) PollForAuth(deviceCode string, interval int) (*AuthResponse
 
 		// Check response status
 		if authResp.Status == "pending" {
-			time.Sleep(pollInterval)
 			continue
 		}
 
@@ -148,9 +174,11 @@ func (e *PollError) Error() string {
 }
 
 func (d *DeviceFlow) checkAuth(deviceCode string) (*AuthResponse, error) {
-	url := fmt.Sprintf("%s/api/auth/github/device?device_code=%s", d.BaseURL, deviceCode)
+	params := url.Values{}
+	params.Set("device_code", deviceCode)
+	endpoint := fmt.Sprintf("%s/api/auth/github/device?%s", d.BaseURL, params.Encode())
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
