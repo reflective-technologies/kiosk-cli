@@ -14,7 +14,6 @@ import (
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
-	Token      string // Optional auth token for authenticated requests
 }
 
 // App represents an app from the API
@@ -49,32 +48,6 @@ func NewClient(baseURL string) *Client {
 			Timeout: 30 * time.Second,
 		},
 	}
-}
-
-// NewAuthenticatedClient creates a new API client with authentication
-func NewAuthenticatedClient(baseURL, token string) *Client {
-	client := NewClient(baseURL)
-	client.Token = token
-	return client
-}
-
-// SetToken sets the authentication token for the client
-func (c *Client) SetToken(token string) {
-	c.Token = token
-}
-
-// newRequest creates a new HTTP request with optional authentication
-func (c *Client) newRequest(method, url string) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-
-	return req, nil
 }
 
 // GetApp fetches app metadata by ID.
