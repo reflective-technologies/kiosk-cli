@@ -4,31 +4,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
 
-const (
-	// GitHub OAuth endpoints
-	deviceCodeURL = "https://github.com/login/device/code"
-	tokenURL      = "https://github.com/login/oauth/access_token"
-)
-
 // DeviceCodeResponse represents the response from requesting a device code
+// Field names match the Kiosk API response (camelCase)
 type DeviceCodeResponse struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri"`
-	ExpiresIn       int    `json:"expires_in"`
+	DeviceCode      string `json:"deviceCode"`
+	UserCode        string `json:"userCode"`
+	VerificationURI string `json:"verificationUri"`
+	ExpiresIn       int    `json:"expiresIn"`
 	Interval        int    `json:"interval"`
 }
 
-// TokenResponse represents a successful token response
-type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
+// User represents the authenticated user info returned by the API
+// Field names match the Kiosk API response (camelCase)
+type User struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+// AuthResponse represents the response from polling for auth completion
+type AuthResponse struct {
+	Status      string `json:"status"` // "pending" or "complete"
+	AccessToken string `json:"access_token,omitempty"`
+	TokenType   string `json:"token_type,omitempty"`
+	Scope       string `json:"scope,omitempty"`
+	User        *User  `json:"user,omitempty"`
 }
 
 // TokenErrorResponse represents an error response when polling for token
@@ -38,36 +44,31 @@ type TokenErrorResponse struct {
 	Interval         int    `json:"interval,omitempty"`
 }
 
-// DeviceFlow handles the OAuth device flow authentication
+// DeviceFlow handles the OAuth device flow authentication via Kiosk API
 type DeviceFlow struct {
-	ClientID   string
+	BaseURL    string
 	HTTPClient *http.Client
 }
 
 // NewDeviceFlow creates a new DeviceFlow instance
-func NewDeviceFlow(clientID string) *DeviceFlow {
+func NewDeviceFlow(baseURL string) *DeviceFlow {
 	return &DeviceFlow{
-		ClientID: clientID,
+		BaseURL: strings.TrimSuffix(baseURL, "/"),
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
 }
 
-// RequestDeviceCode initiates the device flow by requesting a device code
-func (d *DeviceFlow) RequestDeviceCode(scopes []string) (*DeviceCodeResponse, error) {
-	data := url.Values{}
-	data.Set("client_id", d.ClientID)
-	if len(scopes) > 0 {
-		data.Set("scope", strings.Join(scopes, " "))
-	}
+// RequestDeviceCode initiates the device flow by requesting a device code from Kiosk API
+func (d *DeviceFlow) RequestDeviceCode() (*DeviceCodeResponse, error) {
+	url := fmt.Sprintf("%s/api/auth/github/device", d.BaseURL)
 
-	req, err := http.NewRequest("POST", deviceCodeURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := d.HTTPClient.Do(req)
@@ -92,38 +93,47 @@ func (d *DeviceFlow) RequestDeviceCode(scopes []string) (*DeviceCodeResponse, er
 	return &result, nil
 }
 
-// PollForToken polls GitHub for the access token until the user authorizes or an error occurs
-func (d *DeviceFlow) PollForToken(deviceCode string, interval int) (*TokenResponse, error) {
+// PollForAuth polls Kiosk API for auth completion until the user authorizes or an error occurs
+func (d *DeviceFlow) PollForAuth(deviceCode string, interval int) (*AuthResponse, error) {
 	pollInterval := time.Duration(interval) * time.Second
 
 	for {
-		token, err := d.requestToken(deviceCode)
-		if err == nil {
-			return token, nil
-		}
-
-		// Check if it's a polling error we should handle
-		if pollErr, ok := err.(*PollError); ok {
-			switch pollErr.Code {
-			case "authorization_pending":
-				// User hasn't authorized yet, keep polling
-				time.Sleep(pollInterval)
-				continue
-			case "slow_down":
-				// We're polling too fast, increase interval
-				pollInterval += 5 * time.Second
-				time.Sleep(pollInterval)
-				continue
-			case "expired_token":
-				return nil, fmt.Errorf("device code expired, please run login again")
-			case "access_denied":
-				return nil, fmt.Errorf("authorization denied by user")
-			default:
-				return nil, fmt.Errorf("%s: %s", pollErr.Code, pollErr.Description)
+		authResp, err := d.checkAuth(deviceCode)
+		if err != nil {
+			// Check if it's a polling error we should handle
+			if pollErr, ok := err.(*PollError); ok {
+				switch pollErr.Code {
+				case "authorization_pending":
+					// User hasn't authorized yet, keep polling
+					time.Sleep(pollInterval)
+					continue
+				case "slow_down":
+					// We're polling too fast, increase interval
+					pollInterval += 5 * time.Second
+					time.Sleep(pollInterval)
+					continue
+				case "expired_token":
+					return nil, fmt.Errorf("device code expired, please run login again")
+				case "access_denied":
+					return nil, fmt.Errorf("authorization denied by user")
+				default:
+					return nil, fmt.Errorf("%s: %s", pollErr.Code, pollErr.Description)
+				}
 			}
+			return nil, err
 		}
 
-		return nil, err
+		// Check response status
+		if authResp.Status == "pending" {
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		if authResp.Status == "complete" {
+			return authResp, nil
+		}
+
+		return nil, fmt.Errorf("unexpected auth status: %s", authResp.Status)
 	}
 }
 
@@ -137,27 +147,22 @@ func (e *PollError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Description)
 }
 
-func (d *DeviceFlow) requestToken(deviceCode string) (*TokenResponse, error) {
-	data := url.Values{}
-	data.Set("client_id", d.ClientID)
-	data.Set("device_code", deviceCode)
-	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+func (d *DeviceFlow) checkAuth(deviceCode string) (*AuthResponse, error) {
+	url := fmt.Sprintf("%s/api/auth/github/device?device_code=%s", d.BaseURL, deviceCode)
 
-	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := d.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request token: %w", err)
+		return nil, fmt.Errorf("failed to check auth: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// GitHub returns 200 even for errors during polling, we need to check the response body
 	var rawResponse map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&rawResponse); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -172,15 +177,49 @@ func (d *DeviceFlow) requestToken(deviceCode string) (*TokenResponse, error) {
 		}
 	}
 
-	// Parse as successful token response
-	accessToken, ok := rawResponse["access_token"].(string)
-	if !ok || accessToken == "" {
-		return nil, fmt.Errorf("no access token in response")
+	// Parse the auth response
+	authResp := &AuthResponse{}
+
+	if status, ok := rawResponse["status"].(string); ok {
+		authResp.Status = status
 	}
 
-	return &TokenResponse{
-		AccessToken: accessToken,
-		TokenType:   rawResponse["token_type"].(string),
-		Scope:       rawResponse["scope"].(string),
-	}, nil
+	// Try camelCase first (Kiosk API), then snake_case as fallback
+	if accessToken, ok := rawResponse["accessToken"].(string); ok {
+		authResp.AccessToken = accessToken
+	} else if accessToken, ok := rawResponse["access_token"].(string); ok {
+		authResp.AccessToken = accessToken
+	}
+
+	if tokenType, ok := rawResponse["tokenType"].(string); ok {
+		authResp.TokenType = tokenType
+	} else if tokenType, ok := rawResponse["token_type"].(string); ok {
+		authResp.TokenType = tokenType
+	}
+
+	if scope, ok := rawResponse["scope"].(string); ok {
+		authResp.Scope = scope
+	}
+
+	// Parse user if present
+	if userData, ok := rawResponse["user"].(map[string]interface{}); ok {
+		authResp.User = &User{}
+		if id, ok := userData["id"].(string); ok {
+			authResp.User.ID = id
+		}
+		if username, ok := userData["username"].(string); ok {
+			authResp.User.Username = username
+		}
+		if name, ok := userData["name"].(string); ok {
+			authResp.User.Name = name
+		}
+		if email, ok := userData["email"].(string); ok {
+			authResp.User.Email = email
+		}
+		if avatarURL, ok := userData["avatarUrl"].(string); ok {
+			authResp.User.AvatarURL = avatarURL
+		}
+	}
+
+	return authResp, nil
 }

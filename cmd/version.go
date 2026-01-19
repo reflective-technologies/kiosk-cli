@@ -9,10 +9,6 @@ import (
 var (
 	// Version is set at build time via ldflags
 	Version = "dev"
-
-	// GitHubClientID is the OAuth App client ID for GitHub authentication.
-	// Can be overridden at build time via ldflags.
-	GitHubClientID = "Iv23lilG55tK1ZOWxag2"
 )
 
 var versionCmd = &cobra.Command{
