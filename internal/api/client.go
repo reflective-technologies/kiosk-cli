@@ -123,12 +123,34 @@ func (c *Client) GetInstallPrompt(id string) (string, error) {
 	return string(body), nil
 }
 
-// GetCreatePrompt fetches the publish/create prompt
-func (c *Client) GetCreatePrompt() (string, error) {
-	url := fmt.Sprintf("%s/api/create", c.BaseURL)
+// GetInitPrompt fetches the KIOSK.md creation prompt
+func (c *Client) GetInitPrompt() (string, error) {
+	url := fmt.Sprintf("%s/api/prompts/init", c.BaseURL)
 	resp, err := c.HTTPClient.Get(url)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch create prompt: %w", err)
+		return "", fmt.Errorf("failed to fetch init prompt: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return string(body), nil
+}
+
+// GetPublishPrompt fetches the publish prompt
+func (c *Client) GetPublishPrompt() (string, error) {
+	url := fmt.Sprintf("%s/api/prompts/publish", c.BaseURL)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch publish prompt: %w", err)
 	}
 	defer resp.Body.Close()
 

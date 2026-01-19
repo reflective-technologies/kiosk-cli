@@ -155,9 +155,9 @@ var apiRefreshCmd = &cobra.Command{
 	},
 }
 
-var apiCreatePromptCmd = &cobra.Command{
-	Use:   "create-prompt",
-	Short: "Get the app creation/publish prompt",
+var apiInitPromptCmd = &cobra.Command{
+	Use:   "init-prompt",
+	Short: "Get the KIOSK.md creation prompt",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -165,7 +165,27 @@ var apiCreatePromptCmd = &cobra.Command{
 		}
 
 		client := api.NewClient(cfg.APIUrl)
-		prompt, err := client.GetCreatePrompt()
+		prompt, err := client.GetInitPrompt()
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(prompt)
+		return nil
+	},
+}
+
+var apiPublishPromptCmd = &cobra.Command{
+	Use:   "publish-prompt",
+	Short: "Get the app publish prompt",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		client := api.NewClient(cfg.APIUrl)
+		prompt, err := client.GetPublishPrompt()
 		if err != nil {
 			return err
 		}
@@ -212,7 +232,8 @@ func init() {
 	apiCmd.AddCommand(apiUpdateCmd)
 	apiCmd.AddCommand(apiDeleteCmd)
 	apiCmd.AddCommand(apiRefreshCmd)
-	apiCmd.AddCommand(apiCreatePromptCmd)
+	apiCmd.AddCommand(apiInitPromptCmd)
+	apiCmd.AddCommand(apiPublishPromptCmd)
 
 	apiCreateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")
 	apiUpdateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")
