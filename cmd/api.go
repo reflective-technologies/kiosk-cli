@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var inputFile string
-
 var apiCmd = &cobra.Command{
 	Use:   "api",
 	Short: "Interact directly with the Kiosk API",
@@ -66,6 +64,7 @@ var apiCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Publish a new app",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		inputFile, _ := cmd.Flags().GetString("file")
 		var req api.CreateAppRequest
 		if err := readJSONInput(inputFile, &req); err != nil {
 			return err
@@ -93,6 +92,7 @@ var apiUpdateCmd = &cobra.Command{
 	Short: "Update an existing app",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		inputFile, _ := cmd.Flags().GetString("file")
 		var req api.UpdateAppRequest
 		if err := readJSONInput(inputFile, &req); err != nil {
 			return err
@@ -155,11 +155,14 @@ var apiRefreshCmd = &cobra.Command{
 	},
 }
 
-func readJSONInput(path string, v interface{}) error {
+func readJSONInput(path string, v any) error {
 	var r io.Reader
 
 	if path == "" || path == "-" {
-		stat, _ := os.Stdin.Stat()
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return fmt.Errorf("failed to stat stdin: %w", err)
+		}
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
 			return fmt.Errorf("input file required (use -f) or pipe data to stdin")
 		}
@@ -190,6 +193,6 @@ func init() {
 	apiCmd.AddCommand(apiDeleteCmd)
 	apiCmd.AddCommand(apiRefreshCmd)
 
-	apiCreateCmd.Flags().StringVarP(&inputFile, "file", "f", "", "Path to JSON file (use - for stdin)")
-	apiUpdateCmd.Flags().StringVarP(&inputFile, "file", "f", "", "Path to JSON file (use - for stdin)")
+	apiCreateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")
+	apiUpdateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")
 }

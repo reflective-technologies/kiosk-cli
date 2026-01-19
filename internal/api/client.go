@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,15 +50,17 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// GetApp fetches app metadata by ID
-// ID can be either "appId" or "org/repo" format
+// GetApp fetches app metadata by ID.
+// ID can be either "appId" or "org/repo" format.
+// When "org/repo" format is used, only the repo name is extracted as the appId.
+// Note: This means different orgs with same-named repos would resolve to the same app.
+// This matches the Kiosk API behavior where apps are identified by repo name alone.
 func (c *Client) GetApp(id string) (*App, error) {
-	// Handle org/repo format - extract repo name as appId
 	appId := id
 	if strings.Contains(id, "/") {
 		parts := strings.SplitN(id, "/", 2)
 		if len(parts) == 2 {
-			appId = parts[1] // Use repo name as appId
+			appId = parts[1]
 		}
 	}
 
@@ -85,9 +88,9 @@ func (c *Client) GetApp(id string) (*App, error) {
 	return &app, nil
 }
 
-// GetInstallPrompt fetches the installation prompt for an app
+// GetInstallPrompt fetches the installation prompt for an app.
+// ID can be either "appId" or "org/repo" format (see GetApp for details).
 func (c *Client) GetInstallPrompt(id string) (string, error) {
-	// Handle org/repo format
 	appId := id
 	if strings.Contains(id, "/") {
 		parts := strings.SplitN(id, "/", 2)
@@ -173,7 +176,7 @@ func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := c.HTTPClient.Post(url, "application/json", strings.NewReader(string(body)))
+	resp, err := c.HTTPClient.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create app: %w", err)
 	}
@@ -201,7 +204,7 @@ func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	reqHTTP, err := http.NewRequest(http.MethodPut, url, strings.NewReader(string(body)))
+	reqHTTP, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
