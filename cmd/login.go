@@ -10,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const gitHubClientID = "Iv23lilG55tK1ZOWxag2"
-
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with GitHub",
@@ -35,7 +33,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create device flow handler
-	flow := auth.NewDeviceFlow(gitHubClientID)
+	flow := auth.NewDeviceFlow(GitHubClientID)
 
 	// Request device code - request common scopes for GitHub operations
 	// Adjust scopes based on what your app needs
