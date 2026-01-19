@@ -155,6 +155,26 @@ var apiRefreshCmd = &cobra.Command{
 	},
 }
 
+var apiCreatePromptCmd = &cobra.Command{
+	Use:   "create-prompt",
+	Short: "Get the app creation/publish prompt",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		client := api.NewClient(cfg.APIUrl)
+		prompt, err := client.GetCreatePrompt()
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(prompt)
+		return nil
+	},
+}
+
 func readJSONInput(path string, v any) error {
 	var r io.Reader
 
@@ -192,6 +212,7 @@ func init() {
 	apiCmd.AddCommand(apiUpdateCmd)
 	apiCmd.AddCommand(apiDeleteCmd)
 	apiCmd.AddCommand(apiRefreshCmd)
+	apiCmd.AddCommand(apiCreatePromptCmd)
 
 	apiCreateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")
 	apiUpdateCmd.Flags().StringP("file", "f", "", "Path to JSON file (use - for stdin)")

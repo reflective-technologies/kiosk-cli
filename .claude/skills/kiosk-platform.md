@@ -4,14 +4,29 @@ Kiosk is an App Store platform for Claude Code applications. It enables develope
 
 ## How It Works
 
-1. Developers create a `Kiosk.md` file in their repository containing installation instructions
-2. Developers publish their app to the platform via the API (name, description, git URL)
-3. Users browse apps on kiosk.app and copy installation prompts
-4. Claude Code executes the prompt to install the app locally
+### Publishing Workflow (Two-Step Process)
+
+1. **Init Phase**: Run `/api/prompts/init` to create a `KIOSK.md` file in your repository
+   - Analyzes project structure and dependencies
+   - Identifies configuration requirements
+   - Generates installation instructions
+2. **Publish Phase**: Run `/api/prompts/publish` to publish to the registry
+   - Gathers project info from Git
+   - Verifies KIOSK.md exists
+   - Creates or updates app entry via API
+
+### Installation Workflow
+
+1. Users browse apps on kiosk.app
+2. Users copy the installation prompt (plain text)
+3. Claude Code executes the prompt:
+   - Clones the repository
+   - Follows KIOSK.md instructions
+   - Performs cleanup
 
 ## API Reference
 
-Base URL: `https://kiosk.app` (or local dev server)
+Base URL: `https://kiosk.app`
 
 ### Endpoints
 
@@ -22,23 +37,29 @@ Base URL: `https://kiosk.app` (or local dev server)
 | GET | `/api/kiosk/[appId]` | Get app details by ID |
 | PUT | `/api/kiosk/[appId]` | Update an existing app |
 | DELETE | `/api/kiosk/[appId]` | Delete an app |
-| POST | `/api/kiosk/[appId]/refresh` | Refresh cached Kiosk.md from repository |
-| GET | `/api/create` | Get publishing prompt for Claude Code |
-| GET | `/api/kiosk/[appId]/install` | Get installation prompt for Claude Code |
+| POST | `/api/kiosk/[appId]/refresh` | Refresh cached KIOSK.md from repository |
+| GET | `/api/kiosk/[appId]/install` | Get installation prompt (plain text) |
+| GET | `/api/prompts/init` | Get KIOSK.md creation prompt |
+| GET | `/api/prompts/publish` | Get publishing prompt |
+
+### Response Formats
+
+- **JSON**: All `/api/kiosk` endpoints return JSON
+- **Plain Text**: Prompt endpoints (`/install`, `/prompts/*`) return `text/plain; charset=utf-8`
 
 ### App Schema
 
 ```typescript
 interface KioskApp {
-  id: string;              // URL-friendly slug (auto-generated)
+  id: string;              // URL-friendly slug (auto-generated from name)
   name: string;            // App display name
   description: string;     // Short description
   gitUrl: string;          // Repository URL
   branch?: string;         // Git branch (defaults to main/master)
-  subdirectory?: string;   // Path to Kiosk.md in repo
+  subdirectory?: string;   // Path within repo (for monorepos)
   screenshot?: string;     // Preview image URL
   instructions?: string;   // Additional setup notes
-  kioskMd?: string;        // Cached installation instructions
+  kioskMd?: string;        // Cached installation instructions from repo
   createdAt: string;       // ISO timestamp
   updatedAt: string;       // ISO timestamp
 }
@@ -47,10 +68,10 @@ interface KioskApp {
 ### Create/Update Request
 
 ```typescript
-interface CreateAppRequest {
+interface CreateKioskRequest {
   name: string;            // Required
   description: string;     // Required
-  gitUrl: string;          // Required - GitHub, GitLab, or Bitbucket URL
+  gitUrl: string;          // Required - must be valid Git URL
   branch?: string;
   subdirectory?: string;
   screenshot?: string;
@@ -58,12 +79,39 @@ interface CreateAppRequest {
 }
 ```
 
-### Supported Git Providers
+### Git URL Validation
 
-- GitHub: `https://github.com/owner/repo`
-- GitLab: `https://gitlab.com/owner/repo`
-- Bitbucket: `https://bitbucket.org/owner/repo`
+The API validates Git URLs using regex and supports HTTPS and SSH formats:
 
-## Kiosk.md File
+- GitHub: `https://github.com/owner/repo` or `git@github.com:owner/repo`
+- GitLab: `https://gitlab.com/owner/repo` or `git@gitlab.com:owner/repo`
+- Bitbucket: `https://bitbucket.org/owner/repo` or `git@bitbucket.org:owner/repo`
 
-The `Kiosk.md` file is placed in the root of a repository (or subdirectory) and contains instructions that Claude Code follows to install the app. This is the core of app distribution - it tells Claude Code exactly how to set up the application for a user.
+### Error Responses
+
+| Status | Description |
+|--------|-------------|
+| 400 | Validation error (missing fields, invalid Git URL) |
+| 404 | App not found |
+| 500 | Server error |
+
+All errors return: `{ "error": "message" }`
+
+## KIOSK.md File
+
+The `KIOSK.md` file is placed in the root of a repository (or subdirectory) and contains instructions that Claude Code follows to install the app. This is the core of app distribution.
+
+### File Location
+
+The API searches for these filenames (in order): `KIOSK.md`, `Kiosk.md`, `kiosk.md`
+
+### Branch Resolution
+
+If no branch is specified, the API tries: specified branch → `main` → `master`
+
+### Raw File URLs
+
+The API constructs raw file URLs based on provider:
+- **GitHub**: `https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}`
+- **GitLab**: `https://gitlab.com/{owner}/{repo}/-/raw/{branch}/{path}`
+- **Bitbucket**: `https://bitbucket.org/{owner}/{repo}/raw/{branch}/{path}`
