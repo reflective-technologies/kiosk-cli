@@ -8,12 +8,22 @@ import (
 	"time"
 )
 
+// UserInfo stores information about the authenticated user
+type UserInfo struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
 // Credentials stores the user's authentication credentials
 type Credentials struct {
 	AccessToken string    `json:"access_token"`
 	TokenType   string    `json:"token_type"`
 	Scope       string    `json:"scope"`
 	CreatedAt   time.Time `json:"created_at"`
+	User        *UserInfo `json:"user,omitempty"`
 }
 
 // CredentialsPath returns the path to the credentials file
@@ -89,4 +99,19 @@ func GetToken() (string, error) {
 		return "", fmt.Errorf("not logged in, run 'kiosk login' first")
 	}
 	return creds.AccessToken, nil
+}
+
+// GetUser returns the stored user info or an error if not logged in
+func GetUser() (*UserInfo, error) {
+	creds, err := LoadCredentials()
+	if err != nil {
+		return nil, err
+	}
+	if creds == nil || creds.AccessToken == "" {
+		return nil, fmt.Errorf("not logged in, run 'kiosk login' first")
+	}
+	if creds.User == nil {
+		return nil, fmt.Errorf("user info not available, please run 'kiosk login' again")
+	}
+	return creds.User, nil
 }

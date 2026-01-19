@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
+	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/spf13/cobra"
 )
+
+var loginTimeout time.Duration
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
@@ -21,6 +24,7 @@ The CLI will wait for you to complete the authorization in your browser.`,
 }
 
 func init() {
+	loginCmd.Flags().DurationVar(&loginTimeout, "timeout", auth.DefaultPollTimeout, "timeout for waiting for authorization")
 	rootCmd.AddCommand(loginCmd)
 }
 
@@ -32,15 +36,18 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create device flow handler
-	flow := auth.NewDeviceFlow(GitHubClientID)
+	// Load config to get API URL
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
 
-	// Request device code - read:user for identity, public_repo for publishing
-	scopes := []string{"read:user", "public_repo"}
+	// Create device flow handler pointing to Kiosk API
+	flow := auth.NewDeviceFlow(cfg.APIUrl)
 
 	fmt.Println("Initiating GitHub authentication...")
 
-	deviceCode, err := flow.RequestDeviceCode(scopes)
+	deviceCode, err := flow.RequestDeviceCode()
 	if err != nil {
 		return fmt.Errorf("failed to initiate login: %w", err)
 	}
@@ -58,18 +65,29 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Waiting for authorization...")
 
-	// Poll for token
-	token, err := flow.PollForToken(deviceCode.DeviceCode, deviceCode.Interval)
+	// Poll for auth completion
+	authResp, err := flow.PollForAuth(deviceCode.DeviceCode, deviceCode.Interval, loginTimeout)
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// Save credentials
+	// Save credentials with user info
 	creds := &auth.Credentials{
-		AccessToken: token.AccessToken,
-		TokenType:   token.TokenType,
-		Scope:       token.Scope,
+		AccessToken: authResp.AccessToken,
+		TokenType:   authResp.TokenType,
+		Scope:       authResp.Scope,
 		CreatedAt:   time.Now(),
+	}
+
+	// Copy user info if available
+	if authResp.User != nil {
+		creds.User = &auth.UserInfo{
+			ID:        authResp.User.ID,
+			Username:  authResp.User.Username,
+			Name:      authResp.User.Name,
+			Email:     authResp.User.Email,
+			AvatarURL: authResp.User.AvatarURL,
+		}
 	}
 
 	if err := auth.SaveCredentials(creds); err != nil {
@@ -77,7 +95,11 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Successfully authenticated!")
+	if creds.User != nil && creds.User.Username != "" {
+		fmt.Printf("Successfully authenticated as %s!\n", creds.User.Username)
+	} else {
+		fmt.Println("Successfully authenticated!")
+	}
 	return nil
 }
 
