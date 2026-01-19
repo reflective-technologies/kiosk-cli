@@ -25,6 +25,20 @@ type App struct {
 	KioskMd     string `json:"kioskMd,omitempty"`
 }
 
+// CreateAppRequest represents the payload for creating an app
+type CreateAppRequest struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	GitUrl       string `json:"gitUrl"`
+	Branch       string `json:"branch,omitempty"`
+	Subdirectory string `json:"subdirectory,omitempty"`
+	Screenshot   string `json:"screenshot,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+}
+
+// UpdateAppRequest represents the payload for updating an app
+type UpdateAppRequest CreateAppRequest
+
 // NewClient creates a new API client
 func NewClient(baseURL string) *Client {
 	return &Client{
@@ -126,4 +140,129 @@ func (c *Client) GetCreatePrompt() (string, error) {
 	}
 
 	return string(body), nil
+}
+
+// ListApps fetches all published apps
+func (c *Client) ListApps() ([]App, error) {
+	url := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch apps: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var apps []App
+	if err := json.NewDecoder(resp.Body).Decode(&apps); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return apps, nil
+}
+
+// CreateApp publishes a new app
+func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
+	url := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
+	
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := c.HTTPClient.Post(url, "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var app App
+	if err := json.NewDecoder(resp.Body).Decode(&app); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &app, nil
+}
+
+// UpdateApp updates an existing app
+func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
+	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
+	
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	reqHTTP, err := http.NewRequest(http.MethodPut, url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	reqHTTP.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(reqHTTP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update app: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var app App
+	if err := json.NewDecoder(resp.Body).Decode(&app); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &app, nil
+}
+
+// DeleteApp removes an app
+func (c *Client) DeleteApp(id string) error {
+	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
+	
+	reqHTTP, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.HTTPClient.Do(reqHTTP)
+	if err != nil {
+		return fmt.Errorf("failed to delete app: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// RefreshApp triggers a refresh of the app's Kiosk.md from the repository
+func (c *Client) RefreshApp(id string) error {
+	url := fmt.Sprintf("%s/api/kiosk/%s/refresh", c.BaseURL, id)
+	
+	resp, err := c.HTTPClient.Post(url, "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("failed to refresh app: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }
