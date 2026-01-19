@@ -40,13 +40,26 @@ kiosk ls
 kiosk rm <app-name>
 ```
 
+### Authentication
+
+```bash
+# Log in with GitHub (required for publishing)
+kiosk login
+
+# Show current authenticated user
+kiosk whoami
+
+# Log out
+kiosk logout
+```
+
 ### Publish your own app
 
 ```bash
 # Initialize a new kiosk app project (creates Kiosk.md)
 kiosk new
 
-# Publish the current repo to kiosk.app
+# Publish the current repo to kiosk.app (requires login)
 kiosk publish
 ```
 
