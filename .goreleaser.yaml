@@ -18,7 +18,7 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/reflective-technologies/kiosk-cli/cmd.Version={{.Version}}
-      - -X github.com/reflective-technologies/kiosk-cli/cmd.GitHubClientID={{ .Env.GITHUB_OAUTH_CLIENT_ID }}
+      - -X github.com/reflective-technologies/kiosk-cli/cmd.GitHubClientID={{ .Env.GH_OAUTH_CLIENT_ID }}
 
 archives:
   - format: tar.gz
