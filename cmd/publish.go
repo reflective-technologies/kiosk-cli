@@ -49,7 +49,7 @@ Claude Code will guide you through the publishing process, including:
 
 		// Exec claude with the prompt in the current directory
 		fmt.Println("Starting Claude Code...")
-		return execClaude(cwd, prompt)
+		return execClaude(cwd, prompt, false)
 	},
 }
 

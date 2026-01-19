@@ -15,6 +15,7 @@ import (
 )
 
 var sandboxFlag string
+var safeFlag bool
 
 const runPrompt = `Run the app in this directory. Check KIOSK.md for instructions on how to start and use this app.`
 
@@ -59,11 +60,11 @@ The app can be specified as:
 
 		// Check if app is installed
 		if idx.Has(key) {
-			return runInstalledApp(key, sandboxValues)
+			return runInstalledApp(key, sandboxValues, safeFlag)
 		}
 
 		// App not installed - fetch from API and install
-		return installAndRunApp(cfg, idx, appArg, key, sandboxValues)
+		return installAndRunApp(cfg, idx, appArg, key, sandboxValues, safeFlag)
 	},
 }
 
@@ -79,7 +80,7 @@ func normalizeAppKey(input string) string {
 }
 
 // runInstalledApp runs an already-installed app
-func runInstalledApp(key string, sandboxValues []string) error {
+func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid app key: %s", key)
@@ -101,11 +102,11 @@ func runInstalledApp(key string, sandboxValues []string) error {
 	}
 
 	fmt.Printf("Running %s...\n", key)
-	return execClaude(appPath, runPrompt)
+	return execClaude(appPath, runPrompt, safe)
 }
 
 // installAndRunApp fetches an app from the API and installs it
-func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string) error {
+func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string, safe bool) error {
 	client := api.NewClient(cfg.APIUrl)
 
 	// Fetch app metadata
@@ -171,7 +172,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 	}
 
 	fmt.Printf("Installing %s...\n", app.Name)
-	return execClaude(appPath, prompt)
+	return execClaude(appPath, prompt, safe)
 }
 
 // extractOrgRepo extracts org/repo from a GitHub URL
@@ -219,9 +220,14 @@ func runCommand(cmd *exec.Cmd, dir string) error {
 }
 
 // execClaude runs claude in the given directory with the given prompt
-func execClaude(dir, prompt string) error {
+func execClaude(dir, prompt string, safe bool) error {
+	permissionMode := "bypassPermissions"
+	if safe {
+		permissionMode = "default"
+	}
+
 	if _, err := exec.LookPath("claude"); err == nil {
-		cmd := exec.Command("claude", prompt)
+		cmd := exec.Command("claude", "--permission-mode", permissionMode, prompt)
 		return runCommand(cmd, dir)
 	}
 
@@ -230,13 +236,14 @@ func execClaude(dir, prompt string) error {
 		shell = "sh"
 	}
 
-	cmd := exec.Command(shell, "-i", "-c", "claude \"$@\"", "claude", prompt)
+	cmd := exec.Command(shell, "-i", "-c", "claude --permission-mode \"$1\" \"$2\"", "claude", permissionMode, prompt)
 	return runCommand(cmd, dir)
 }
 
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVar(&sandboxFlag, "sandbox", "", "sandbox mode: comma-separated list of 'default', 'fs', 'net'")
+	runCmd.Flags().BoolVar(&safeFlag, "safe", false, "run with default permission mode (prompts for permissions)")
 }
 
 // parseSandboxValues parses and validates the sandbox flag value
