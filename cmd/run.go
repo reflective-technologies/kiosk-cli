@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/spf13/cobra"
 )
+
+var sandboxFlag string
 
 const runPrompt = `Run the app in this directory. Check KIOSK.md for instructions on how to start and use this app.`
 
@@ -27,6 +30,13 @@ The app can be specified as:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appArg := args[0]
+
+		// Parse and transform sandbox values
+		sandboxValues, err := parseSandboxValues(sandboxFlag)
+		if err != nil {
+			return err
+		}
+		sandboxValues = transformSandboxValues(sandboxValues)
 
 		// Ensure working directory is initialized
 		if err := config.EnsureInitialized(); err != nil {
@@ -49,11 +59,11 @@ The app can be specified as:
 
 		// Check if app is installed
 		if idx.Has(key) {
-			return runInstalledApp(key)
+			return runInstalledApp(key, sandboxValues)
 		}
 
 		// App not installed - fetch from API and install
-		return installAndRunApp(cfg, idx, appArg, key)
+		return installAndRunApp(cfg, idx, appArg, key, sandboxValues)
 	},
 }
 
@@ -69,7 +79,7 @@ func normalizeAppKey(input string) string {
 }
 
 // runInstalledApp runs an already-installed app
-func runInstalledApp(key string) error {
+func runInstalledApp(key string, sandboxValues []string) error {
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid app key: %s", key)
@@ -82,12 +92,20 @@ func runInstalledApp(key string) error {
 		return fmt.Errorf("app directory missing: %s (try removing and reinstalling)", appPath)
 	}
 
+	// Apply sandbox settings if specified
+	if len(sandboxValues) > 0 {
+		fmt.Printf("Configuring sandbox mode...\n")
+		if err := writeSandboxSettings(appPath, sandboxValues); err != nil {
+			return fmt.Errorf("failed to configure sandbox: %w", err)
+		}
+	}
+
 	fmt.Printf("Running %s...\n", key)
 	return execClaude(appPath, runPrompt)
 }
 
 // installAndRunApp fetches an app from the API and installs it
-func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string) error {
+func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string) error {
 	client := api.NewClient(cfg.APIUrl)
 
 	// Fetch app metadata
@@ -132,6 +150,14 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 	fmt.Printf("Cloning %s...\n", app.GitUrl)
 	if err := cloneRepo(app.GitUrl, appPath); err != nil {
 		return err
+	}
+
+	// Apply sandbox settings if specified
+	if len(sandboxValues) > 0 {
+		fmt.Printf("Configuring sandbox mode...\n")
+		if err := writeSandboxSettings(appPath, sandboxValues); err != nil {
+			return fmt.Errorf("failed to configure sandbox: %w", err)
+		}
 	}
 
 	// Register in index
@@ -210,4 +236,123 @@ func execClaude(dir, prompt string) error {
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+	runCmd.Flags().StringVar(&sandboxFlag, "sandbox", "", "sandbox mode: comma-separated list of 'default', 'fs', 'net'")
+}
+
+// parseSandboxValues parses and validates the sandbox flag value
+func parseSandboxValues(input string) ([]string, error) {
+	if input == "" {
+		return nil, nil
+	}
+
+	validValues := map[string]bool{"default": true, "fs": true, "net": true}
+	seen := make(map[string]bool)
+	var values []string
+
+	for _, v := range strings.Split(input, ",") {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if !validValues[v] {
+			return nil, fmt.Errorf("invalid sandbox value: %q (valid: default, fs, net)", v)
+		}
+		if !seen[v] {
+			seen[v] = true
+			values = append(values, v)
+		}
+	}
+
+	return values, nil
+}
+
+// transformSandboxValues expands 'default' to include 'fs' and deduplicates
+func transformSandboxValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, v := range values {
+		if v == "default" {
+			// 'default' expands to include 'fs'
+			if !seen["fs"] {
+				seen["fs"] = true
+				result = append(result, "fs")
+			}
+		}
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
+// writeSandboxSettings creates or updates .claude/settings.json with sandbox config
+func writeSandboxSettings(appPath string, sandboxValues []string) error {
+	if len(sandboxValues) == 0 {
+		return nil
+	}
+
+	claudeDir := filepath.Join(appPath, ".claude")
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+
+	// Ensure .claude directory exists
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .claude directory: %w", err)
+	}
+
+	// Load existing settings or create empty object
+	settings := make(map[string]interface{})
+	if data, err := os.ReadFile(settingsPath); err == nil {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return fmt.Errorf("failed to parse existing settings.json: %w", err)
+		}
+	}
+
+	// Build sandbox config
+	sandboxConfig := map[string]interface{}{
+		"enabled": true,
+	}
+
+	hasFS := false
+	hasNet := false
+	for _, v := range sandboxValues {
+		if v == "fs" {
+			hasFS = true
+		}
+		if v == "net" {
+			hasNet = true
+		}
+	}
+
+	if hasFS {
+		absPath, err := filepath.Abs(appPath)
+		if err != nil {
+			absPath = appPath
+		}
+		sandboxConfig["allowedDirectories"] = []string{absPath}
+	}
+
+	if hasNet {
+		sandboxConfig["allowedDomains"] = []string{}
+	}
+
+	settings["sandbox"] = sandboxConfig
+
+	// Write settings back
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write settings.json: %w", err)
+	}
+
+	return nil
 }
