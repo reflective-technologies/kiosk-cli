@@ -35,9 +35,8 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	// Create device flow handler
 	flow := auth.NewDeviceFlow(GitHubClientID)
 
-	// Request device code - request common scopes for GitHub operations
-	// Adjust scopes based on what your app needs
-	scopes := []string{"read:user", "repo"}
+	// Request device code - read:user for identity, public_repo for publishing
+	scopes := []string{"read:user", "public_repo"}
 
 	fmt.Println("Initiating GitHub authentication...")
 
