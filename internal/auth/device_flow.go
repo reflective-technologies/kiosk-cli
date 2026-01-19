@@ -104,26 +104,22 @@ func (d *DeviceFlow) PollForAuth(deviceCode string, interval int, timeout time.D
 		timeout = DefaultPollTimeout
 	}
 
+	// Ensure minimum interval of 5 seconds to avoid rate limiting
 	pollInterval := time.Duration(interval) * time.Second
-	timeoutCh := time.After(timeout)
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
+	if pollInterval < 5*time.Second {
+		pollInterval = 5 * time.Second
+	}
 
-	// Check immediately on first iteration
-	checkNow := make(chan struct{}, 1)
-	checkNow <- struct{}{}
+	deadline := time.Now().Add(timeout)
 
 	for {
-		select {
-		case <-timeoutCh:
+		// Check if we've exceeded the timeout
+		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("authorization timed out after %v, please run login again", timeout)
-
-		case <-checkNow:
-			// First check, fall through to auth check
-
-		case <-ticker.C:
-			// Subsequent checks on interval
 		}
+
+		// Wait before polling (this ensures we don't poll immediately)
+		time.Sleep(pollInterval)
 
 		authResp, err := d.checkAuth(deviceCode)
 		if err != nil {
@@ -135,15 +131,19 @@ func (d *DeviceFlow) PollForAuth(deviceCode string, interval int, timeout time.D
 					continue
 				case "slow_down":
 					// We're polling too fast, increase interval
-					ticker.Stop()
 					pollInterval += 5 * time.Second
-					ticker = time.NewTicker(pollInterval)
 					continue
 				case "expired_token":
 					return nil, fmt.Errorf("device code expired, please run login again")
 				case "access_denied":
 					return nil, fmt.Errorf("authorization denied by user")
 				default:
+					// Check if it's a rate limit error (treat as slow_down)
+					if strings.Contains(strings.ToLower(pollErr.Code), "too many requests") ||
+						strings.Contains(strings.ToLower(pollErr.Description), "too many requests") {
+						pollInterval += 5 * time.Second
+						continue
+					}
 					return nil, fmt.Errorf("%s: %s", pollErr.Code, pollErr.Description)
 				}
 			}
