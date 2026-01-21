@@ -14,6 +14,7 @@ import (
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
+	token      string // GitHub access token for authenticated requests
 }
 
 // App represents an app from the API
@@ -40,7 +41,7 @@ type CreateAppRequest struct {
 // UpdateAppRequest represents the payload for updating an app
 type UpdateAppRequest CreateAppRequest
 
-// NewClient creates a new API client
+// NewClient creates a new API client without authentication
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: strings.TrimSuffix(baseURL, "/"),
@@ -48,6 +49,40 @@ func NewClient(baseURL string) *Client {
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// NewAuthenticatedClient creates a new API client with GitHub token authentication
+func NewAuthenticatedClient(baseURL, token string) *Client {
+	return &Client{
+		BaseURL: strings.TrimSuffix(baseURL, "/"),
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		token: token,
+	}
+}
+
+// SetToken sets the authentication token for the client
+func (c *Client) SetToken(token string) {
+	c.token = token
+}
+
+// doRequest performs an HTTP request with optional authentication
+func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	return c.HTTPClient.Do(req)
+}
+
+// doAuthenticatedRequest performs an HTTP request that requires authentication
+// Returns an error if no token is set
+func (c *Client) doAuthenticatedRequest(req *http.Request) (*http.Response, error) {
+	if c.token == "" {
+		return nil, fmt.Errorf("authentication required: no token set")
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	return c.HTTPClient.Do(req)
 }
 
 // GetApp fetches app metadata by ID.
@@ -189,7 +224,7 @@ func (c *Client) ListApps() ([]App, error) {
 	return apps, nil
 }
 
-// CreateApp publishes a new app
+// CreateApp publishes a new app (requires authentication)
 func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 	url := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
 
@@ -198,7 +233,13 @@ func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := c.HTTPClient.Post(url, "application/json", bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doAuthenticatedRequest(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create app: %w", err)
 	}
@@ -217,7 +258,7 @@ func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 	return &app, nil
 }
 
-// UpdateApp updates an existing app
+// UpdateApp updates an existing app (requires authentication)
 func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
 	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
 
@@ -232,7 +273,7 @@ func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
 	}
 	reqHTTP.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(reqHTTP)
+	resp, err := c.doAuthenticatedRequest(reqHTTP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update app: %w", err)
 	}
@@ -251,7 +292,7 @@ func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
 	return &app, nil
 }
 
-// DeleteApp removes an app
+// DeleteApp removes an app (requires authentication)
 func (c *Client) DeleteApp(id string) error {
 	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
 
@@ -260,7 +301,7 @@ func (c *Client) DeleteApp(id string) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.HTTPClient.Do(reqHTTP)
+	resp, err := c.doAuthenticatedRequest(reqHTTP)
 	if err != nil {
 		return fmt.Errorf("failed to delete app: %w", err)
 	}
@@ -274,11 +315,17 @@ func (c *Client) DeleteApp(id string) error {
 	return nil
 }
 
-// RefreshApp triggers a refresh of the app's Kiosk.md from the repository
+// RefreshApp triggers a refresh of the app's Kiosk.md from the repository (requires authentication)
 func (c *Client) RefreshApp(id string) error {
 	url := fmt.Sprintf("%s/api/kiosk/%s/refresh", c.BaseURL, id)
 
-	resp, err := c.HTTPClient.Post(url, "application/json", nil)
+	reqHTTP, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	reqHTTP.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doAuthenticatedRequest(reqHTTP)
 	if err != nil {
 		return fmt.Errorf("failed to refresh app: %w", err)
 	}
