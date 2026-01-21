@@ -133,12 +133,7 @@ func getNarrativeMessage(err *APIError) string {
 	msg := strings.ToLower(err.Message)
 
 	switch {
-	// Repository visibility errors
-	case strings.Contains(msg, "public") && strings.Contains(msg, "repo"),
-		strings.Contains(msg, "private"):
-		return "You are attempting to publish a private repository. Please make your repository public on GitHub to continue."
-
-	// Authentication/authorization errors
+	// Authentication/authorization errors - check status codes first
 	case err.IsUnauthorized():
 		return "Your session has expired or is invalid. Please run 'kiosk login' to authenticate."
 	case err.IsForbidden():
@@ -147,6 +142,15 @@ func getNarrativeMessage(err *APIError) string {
 	// Not found errors
 	case err.IsNotFound():
 		return "The requested app could not be found. Please run 'kiosk list' to see your available apps."
+
+	// Server errors
+	case err.IsServerError():
+		return "The Kiosk server encountered an error. Please try again later."
+
+	// Repository visibility errors (400 Bad Request from server)
+	// Only match on 400s to avoid false positives from other errors containing "public" or "private"
+	case err.IsBadRequest() && (strings.Contains(msg, "public") && strings.Contains(msg, "repo")):
+		return "You are attempting to publish a private repository. Please make your repository public on GitHub to continue."
 
 	// Git URL errors
 	case strings.Contains(msg, "git url") || strings.Contains(msg, "invalid url"):
@@ -161,10 +165,6 @@ func getNarrativeMessage(err *APIError) string {
 		return "A name is required for your app. Please provide one in your KIOSK.md file."
 	case strings.Contains(msg, "description") && (strings.Contains(msg, "required") || strings.Contains(msg, "missing")):
 		return "A description is required for your app. Please provide one in your KIOSK.md file."
-
-	// Server errors
-	case err.IsServerError():
-		return "The Kiosk server encountered an error. Please try again later."
 
 	// Rate limiting
 	case strings.Contains(msg, "rate limit") || strings.Contains(msg, "too many requests"):
