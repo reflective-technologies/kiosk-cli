@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DefaultAPIUrl = "https://kiosk-four.vercel.app"
+	DefaultAPIUrl = "https://beta.kiosk.app"
 	EnvAPIUrl     = "KIOSK_API_URL"
 )
 
