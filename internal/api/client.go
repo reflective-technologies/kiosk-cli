@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	apierrors "github.com/reflective-technologies/kiosk-cli/internal/errors"
 )
 
 // Client is a kiosk API client
@@ -72,17 +75,54 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
-	return c.HTTPClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, wrapNetworkError(err)
+	}
+	return resp, nil
+}
+
+// wrapNetworkError wraps network-related errors with user-friendly messages
+func wrapNetworkError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check for URL errors (DNS, connection refused, etc.)
+	if urlErr, ok := err.(*url.Error); ok {
+		switch {
+		case strings.Contains(urlErr.Error(), "no such host"):
+			return apierrors.NewNetworkError("Could not reach the Kiosk API (DNS lookup failed)", err)
+		case strings.Contains(urlErr.Error(), "connection refused"):
+			return apierrors.NewNetworkError("Could not connect to the Kiosk API (connection refused)", err)
+		case strings.Contains(urlErr.Error(), "timeout"):
+			return apierrors.NewNetworkError("Request to Kiosk API timed out", err)
+		case strings.Contains(urlErr.Error(), "certificate"):
+			return apierrors.NewNetworkError("SSL/TLS certificate error when connecting to Kiosk API", err)
+		}
+	}
+
+	return apierrors.NewNetworkError("Network error while connecting to Kiosk API", err)
+}
+
+// handleAPIError creates an appropriate error from an HTTP response
+func handleAPIError(resp *http.Response) error {
+	body, _ := io.ReadAll(resp.Body)
+	return apierrors.NewAPIError(resp.StatusCode, body)
 }
 
 // doAuthenticatedRequest performs an HTTP request that requires authentication
 // Returns an error if no token is set
 func (c *Client) doAuthenticatedRequest(req *http.Request) (*http.Response, error) {
 	if c.token == "" {
-		return nil, fmt.Errorf("authentication required: no token set")
+		return nil, apierrors.NewAuthError("Authentication required")
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
-	return c.HTTPClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, wrapNetworkError(err)
+	}
+	return resp, nil
 }
 
 // GetApp fetches app metadata by ID.
@@ -99,20 +139,20 @@ func (c *Client) GetApp(id string) (*App, error) {
 		}
 	}
 
-	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, appId)
-	resp, err := c.HTTPClient.Get(url)
+	reqURL := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, appId)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch app: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("app %q not found", id)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return nil, handleAPIError(resp)
 	}
 
 	var app App
@@ -134,20 +174,20 @@ func (c *Client) GetInstallPrompt(id string) (string, error) {
 		}
 	}
 
-	url := fmt.Sprintf("%s/api/kiosk/%s/install", c.BaseURL, appId)
-	resp, err := c.HTTPClient.Get(url)
+	reqURL := fmt.Sprintf("%s/api/kiosk/%s/install", c.BaseURL, appId)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch install prompt: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return "", fmt.Errorf("app %q not found", id)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return "", handleAPIError(resp)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -160,16 +200,20 @@ func (c *Client) GetInstallPrompt(id string) (string, error) {
 
 // GetInitPrompt fetches the KIOSK.md creation prompt
 func (c *Client) GetInitPrompt() (string, error) {
-	url := fmt.Sprintf("%s/api/prompts/init", c.BaseURL)
-	resp, err := c.HTTPClient.Get(url)
+	reqURL := fmt.Sprintf("%s/api/prompts/init", c.BaseURL)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch init prompt: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return "", handleAPIError(resp)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -182,16 +226,20 @@ func (c *Client) GetInitPrompt() (string, error) {
 
 // GetPublishPrompt fetches the publish prompt
 func (c *Client) GetPublishPrompt() (string, error) {
-	url := fmt.Sprintf("%s/api/prompts/publish", c.BaseURL)
-	resp, err := c.HTTPClient.Get(url)
+	reqURL := fmt.Sprintf("%s/api/prompts/publish", c.BaseURL)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch publish prompt: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return "", handleAPIError(resp)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -204,16 +252,20 @@ func (c *Client) GetPublishPrompt() (string, error) {
 
 // ListApps fetches all published apps
 func (c *Client) ListApps() ([]App, error) {
-	url := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
-	resp, err := c.HTTPClient.Get(url)
+	reqURL := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch apps: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return nil, handleAPIError(resp)
 	}
 
 	var apps []App
@@ -226,14 +278,14 @@ func (c *Client) ListApps() ([]App, error) {
 
 // CreateApp publishes a new app (requires authentication)
 func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
-	url := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
+	reqURL := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
 
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -241,13 +293,12 @@ func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 
 	resp, err := c.doAuthenticatedRequest(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create app: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+		return nil, handleAPIError(resp)
 	}
 
 	var app App
@@ -260,28 +311,27 @@ func (c *Client) CreateApp(req CreateAppRequest) (*App, error) {
 
 // UpdateApp updates an existing app (requires authentication)
 func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
-	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
+	reqURL := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
 
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	reqHTTP, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	reqHTTP.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.doAuthenticatedRequest(reqHTTP)
+	resp, err := c.doAuthenticatedRequest(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update app: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+		return nil, handleAPIError(resp)
 	}
 
 	var app App
@@ -294,22 +344,21 @@ func (c *Client) UpdateApp(id string, req UpdateAppRequest) (*App, error) {
 
 // DeleteApp removes an app (requires authentication)
 func (c *Client) DeleteApp(id string) error {
-	url := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
+	reqURL := fmt.Sprintf("%s/api/kiosk/%s", c.BaseURL, id)
 
-	reqHTTP, err := http.NewRequest(http.MethodDelete, url, nil)
+	httpReq, err := http.NewRequest(http.MethodDelete, reqURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.doAuthenticatedRequest(reqHTTP)
+	resp, err := c.doAuthenticatedRequest(httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to delete app: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+		return handleAPIError(resp)
 	}
 
 	return nil
@@ -317,23 +366,22 @@ func (c *Client) DeleteApp(id string) error {
 
 // RefreshApp triggers a refresh of the app's Kiosk.md from the repository (requires authentication)
 func (c *Client) RefreshApp(id string) error {
-	url := fmt.Sprintf("%s/api/kiosk/%s/refresh", c.BaseURL, id)
+	reqURL := fmt.Sprintf("%s/api/kiosk/%s/refresh", c.BaseURL, id)
 
-	reqHTTP, err := http.NewRequest(http.MethodPost, url, nil)
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	reqHTTP.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.doAuthenticatedRequest(reqHTTP)
+	resp, err := c.doAuthenticatedRequest(httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to refresh app: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+		return handleAPIError(resp)
 	}
 
 	return nil
