@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
+	"github.com/reflective-technologies/kiosk-cli/internal/auth"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -64,6 +65,12 @@ var apiCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Publish a new app",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check authentication
+		token, err := auth.GetToken()
+		if err != nil {
+			return fmt.Errorf("not logged in, run 'kiosk login' first")
+		}
+
 		inputFile, _ := cmd.Flags().GetString("file")
 		var req api.CreateAppRequest
 		if err := readJSONInput(inputFile, &req); err != nil {
@@ -75,7 +82,7 @@ var apiCreateCmd = &cobra.Command{
 			return err
 		}
 
-		client := api.NewClient(cfg.APIUrl)
+		client := api.NewAuthenticatedClient(cfg.APIUrl, token)
 		app, err := client.CreateApp(req)
 		if err != nil {
 			return err
@@ -92,6 +99,12 @@ var apiUpdateCmd = &cobra.Command{
 	Short: "Update an existing app",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check authentication
+		token, err := auth.GetToken()
+		if err != nil {
+			return fmt.Errorf("not logged in, run 'kiosk login' first")
+		}
+
 		inputFile, _ := cmd.Flags().GetString("file")
 		var req api.UpdateAppRequest
 		if err := readJSONInput(inputFile, &req); err != nil {
@@ -103,7 +116,7 @@ var apiUpdateCmd = &cobra.Command{
 			return err
 		}
 
-		client := api.NewClient(cfg.APIUrl)
+		client := api.NewAuthenticatedClient(cfg.APIUrl, token)
 		app, err := client.UpdateApp(args[0], req)
 		if err != nil {
 			return err
@@ -120,12 +133,18 @@ var apiDeleteCmd = &cobra.Command{
 	Short: "Delete an app",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check authentication
+		token, err := auth.GetToken()
+		if err != nil {
+			return fmt.Errorf("not logged in, run 'kiosk login' first")
+		}
+
 		cfg, err := config.Load()
 		if err != nil {
 			return err
 		}
 
-		client := api.NewClient(cfg.APIUrl)
+		client := api.NewAuthenticatedClient(cfg.APIUrl, token)
 		if err := client.DeleteApp(args[0]); err != nil {
 			return err
 		}
@@ -140,12 +159,18 @@ var apiRefreshCmd = &cobra.Command{
 	Short: "Refresh app's Kiosk.md from repository",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check authentication
+		token, err := auth.GetToken()
+		if err != nil {
+			return fmt.Errorf("not logged in, run 'kiosk login' first")
+		}
+
 		cfg, err := config.Load()
 		if err != nil {
 			return err
 		}
 
-		client := api.NewClient(cfg.APIUrl)
+		client := api.NewAuthenticatedClient(cfg.APIUrl, token)
 		if err := client.RefreshApp(args[0]); err != nil {
 			return err
 		}
