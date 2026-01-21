@@ -156,13 +156,10 @@ func getNarrativeMessage(err *APIError) string {
 	case strings.Contains(msg, "git url") || strings.Contains(msg, "invalid url"):
 		return "The Git URL provided is invalid. Please run this command from a git repository with a valid GitHub remote."
 
-	// KIOSK.md errors
-	case strings.Contains(msg, "kiosk.md"):
-		return "Your repository is missing a KIOSK.md file. Please run 'kiosk init' to create one."
-
 	// Validation errors
 	case strings.Contains(msg, "name") && (strings.Contains(msg, "required") || strings.Contains(msg, "missing")):
 		return "A name is required for your app. Please provide one in your KIOSK.md file."
+
 	case strings.Contains(msg, "description") && (strings.Contains(msg, "required") || strings.Contains(msg, "missing")):
 		return "A description is required for your app. Please provide one in your KIOSK.md file."
 
