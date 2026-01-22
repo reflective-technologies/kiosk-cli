@@ -102,6 +102,7 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 	}
 
 	fmt.Printf("Running %s...\n", key)
+	fmt.Print(logo)
 	return execClaude(appPath, runPrompt, safe)
 }
 
@@ -172,6 +173,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 	}
 
 	fmt.Printf("Installing %s...\n", app.Name)
+	fmt.Print(logo)
 	return execClaude(appPath, prompt, safe)
 }
 
