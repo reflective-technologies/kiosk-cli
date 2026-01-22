@@ -279,6 +279,9 @@ func updateRepoIfNeeded(appPath string) (*updateInfo, error) {
 
 	newCommit, err := gitOutput(appPath, "rev-parse", "HEAD")
 	if err != nil {
+		if hasChanges {
+			_ = gitRun(appPath, "stash", "pop")
+		}
 		return nil, err
 	}
 
