@@ -13,9 +13,10 @@ import (
 
 // ANSI codes for ls command
 const (
-	lsReset = "\033[0m"
-	lsDim   = "\033[2m"
-	lsBold  = "\033[1m"
+	lsReset  = "\033[0m"
+	lsDim    = "\033[2m"
+	lsBold   = "\033[1m"
+	lsYellow = "\033[33m"
 )
 
 func lsUseColor() bool {
@@ -56,6 +57,9 @@ var lsCmd = &cobra.Command{
 		keys := idx.List()
 		sort.Strings(keys)
 
+		// Validate filesystem
+		exists := idx.ValidateFilesystem()
+
 		// Calculate column widths
 		maxName := len("APP")
 		maxAuthor := len("AUTHOR")
@@ -95,10 +99,16 @@ var lsCmd = &cobra.Command{
 			entry := idx.Get(key)
 			installedAt := entry.InstalledAt.Format("01/02/06")
 
-			fmt.Printf("  %s  %s  %s\n",
+			status := ""
+			if !exists[key] {
+				status = lsStyle(lsYellow, " (missing)")
+			}
+
+			fmt.Printf("  %s  %s  %s%s\n",
 				lsStyle(lsBold, padRight(name, maxName)),
 				padRight(author, maxAuthor),
 				lsStyle(lsDim, installedAt),
+				status,
 			)
 		}
 
