@@ -311,6 +311,7 @@ func buildUpdatePrompt(info *updateInfo) string {
 		}
 	}
 	b.WriteString("Apply any configuration fixes or updates needed to get the app running again for the user.\n")
+	b.WriteString("Prompt the user once installation is complete: ask what they'd like to do next via multiple choice. Tailor options to the app—some are runnable apps (dev server, production build), others are workflow-oriented (scripts, generators, automation). For workflows, offer to help run them interactively.\n")
 	b.WriteString(runPrompt)
 	return b.String()
 }
