@@ -7,14 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const logo = `
-   ____ ___   ________  ________  ________  ____ ___
-  ╱    ╱   ╲ ╱        ╲╱        ╲╱        ╲╱    ╱   ╲
- ╱         ╱_╱       ╱╱         ╱        _╱         ╱
-╱╱       _╱╱         ╱         ╱-        ╱        _╱
-╲╲___╱___╱ ╲________╱╲________╱╲________╱╲____╱___╱
-`
-
 var rootCmd = &cobra.Command{
 	Use:           "kiosk",
 	Short:         "Kiosk CLI",
