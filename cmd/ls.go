@@ -99,6 +99,8 @@ func splitAppKey(key string) (author, name string) {
 	name = parts[0]
 	if len(parts) == 2 {
 		name = parts[1]
+	} else {
+		author = ""
 	}
 	return author, name
 }
