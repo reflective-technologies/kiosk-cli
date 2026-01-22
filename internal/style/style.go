@@ -57,8 +57,3 @@ type Styler struct {
 func (s *Styler) Apply(codes, text string) string {
 	return Apply(s.fd, codes, text)
 }
-
-// UseColor returns whether colors are enabled for this styler.
-func (s *Styler) UseColor() bool {
-	return UseColor(s.fd)
-}

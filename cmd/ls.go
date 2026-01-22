@@ -38,12 +38,7 @@ var lsCmd = &cobra.Command{
 		maxName := len("APP")
 		maxAuthor := len("AUTHOR")
 		for _, key := range keys {
-			parts := strings.SplitN(key, "/", 2)
-			author := parts[0]
-			name := parts[0]
-			if len(parts) == 2 {
-				name = parts[1]
-			}
+			author, name := splitAppKey(key)
 			if len(name) > maxName {
 				maxName = len(name)
 			}
@@ -63,15 +58,13 @@ var lsCmd = &cobra.Command{
 
 		// Print rows
 		for _, key := range keys {
-			parts := strings.SplitN(key, "/", 2)
-			author := parts[0]
-			name := parts[0]
-			if len(parts) == 2 {
-				name = parts[1]
-			}
+			author, name := splitAppKey(key)
 
 			entry := idx.Get(key)
-			installedAt := entry.InstalledAt.Format("01/02/06")
+			installedAt := "unknown"
+			if entry != nil && !entry.InstalledAt.IsZero() {
+				installedAt = entry.InstalledAt.Format("01/02/06")
+			}
 
 			status := ""
 			if !exists[key] {
@@ -98,6 +91,16 @@ func padRight(s string, length int) string {
 		return s
 	}
 	return s + strings.Repeat(" ", length-len(s))
+}
+
+func splitAppKey(key string) (author, name string) {
+	parts := strings.SplitN(key, "/", 2)
+	author = parts[0]
+	name = parts[0]
+	if len(parts) == 2 {
+		name = parts[1]
+	}
+	return author, name
 }
 
 func init() {
