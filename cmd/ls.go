@@ -2,42 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/style"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
-
-// ANSI codes for ls command
-const (
-	lsReset  = "\033[0m"
-	lsDim    = "\033[2m"
-	lsBold   = "\033[1m"
-	lsYellow = "\033[33m"
-)
-
-func lsUseColor() bool {
-	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return false
-	}
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-	if os.Getenv("TERM") == "dumb" {
-		return false
-	}
-	return true
-}
-
-func lsStyle(codes string, text string) string {
-	if !lsUseColor() {
-		return text
-	}
-	return codes + text + lsReset
-}
 
 var lsCmd = &cobra.Command{
 	Use:   "ls",
@@ -60,6 +31,9 @@ var lsCmd = &cobra.Command{
 		// Validate filesystem
 		exists := idx.ValidateFilesystem()
 
+		// Create styler for stdout
+		s := style.Stdout()
+
 		// Calculate column widths
 		maxName := len("APP")
 		maxAuthor := len("AUTHOR")
@@ -81,11 +55,11 @@ var lsCmd = &cobra.Command{
 		// Print header
 		fmt.Println()
 		fmt.Printf("  %s  %s  %s\n",
-			lsStyle(lsDim, padRight("APP", maxName)),
-			lsStyle(lsDim, padRight("AUTHOR", maxAuthor)),
-			lsStyle(lsDim, "INSTALLED"),
+			s.Apply(style.Dim, padRight("APP", maxName)),
+			s.Apply(style.Dim, padRight("AUTHOR", maxAuthor)),
+			s.Apply(style.Dim, "INSTALLED"),
 		)
-		fmt.Println(lsStyle(lsDim, "  "+strings.Repeat("─", maxName+maxAuthor+14)))
+		fmt.Println(s.Apply(style.Dim, "  "+strings.Repeat("─", maxName+maxAuthor+13)))
 
 		// Print rows
 		for _, key := range keys {
@@ -101,13 +75,13 @@ var lsCmd = &cobra.Command{
 
 			status := ""
 			if !exists[key] {
-				status = lsStyle(lsYellow, " (missing)")
+				status = s.Apply(style.Yellow, " (missing)")
 			}
 
 			fmt.Printf("  %s  %s  %s%s\n",
-				lsStyle(lsBold, padRight(name, maxName)),
+				s.Apply(style.Bold, padRight(name, maxName)),
 				padRight(author, maxAuthor),
-				lsStyle(lsDim, installedAt),
+				s.Apply(style.Dim, installedAt),
 				status,
 			)
 		}
