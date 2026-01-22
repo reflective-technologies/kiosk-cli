@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/style"
 	"github.com/spf13/cobra"
 )
 
@@ -23,21 +25,58 @@ var lsCmd = &cobra.Command{
 		}
 
 		// Get and sort app keys
-		apps := idx.List()
-		sort.Strings(apps)
+		keys := idx.List()
+		sort.Strings(keys)
 
 		// Validate filesystem
 		exists := idx.ValidateFilesystem()
 
-		fmt.Println("Installed apps:")
-		fmt.Println()
+		// Create styler for stdout
+		s := style.Stdout()
 
-		for _, key := range apps {
+		// Calculate column widths
+		maxName := len("APP")
+		maxAuthor := len("AUTHOR")
+		for _, key := range keys {
+			author, name := splitAppKey(key)
+			if len(name) > maxName {
+				maxName = len(name)
+			}
+			if len(author) > maxAuthor {
+				maxAuthor = len(author)
+			}
+		}
+
+		// Print header
+		fmt.Println()
+		fmt.Printf("  %s  %s  %s\n",
+			s.Apply(style.Dim, padRight("APP", maxName)),
+			s.Apply(style.Dim, padRight("AUTHOR", maxAuthor)),
+			s.Apply(style.Dim, "INSTALLED"),
+		)
+		fmt.Println(s.Apply(style.Dim, "  "+strings.Repeat("─", maxName+maxAuthor+13)))
+
+		// Print rows
+		for _, key := range keys {
+			author, name := splitAppKey(key)
+
+			entry := idx.Get(key)
+			installedAt := "unknown"
+			if entry != nil && !entry.InstalledAt.IsZero() {
+				installedAt = entry.InstalledAt.Format("01/02/06")
+			}
+
 			status := ""
 			if !exists[key] {
-				status = " (missing)"
+				status = s.Apply(style.Yellow, " (missing)")
 			}
-			fmt.Printf("  %s%s\n", key, status)
+
+			fmt.Printf("  %s  %s  %s%s\n",
+				s.Apply(style.Bold, padRight(name, maxName)),
+				padRight(author, maxAuthor),
+				s.Apply(style.Dim, installedAt),
+				status,
+			)
 		}
 
 		fmt.Println()
@@ -45,6 +84,25 @@ var lsCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+func padRight(s string, length int) string {
+	if len(s) >= length {
+		return s
+	}
+	return s + strings.Repeat(" ", length-len(s))
+}
+
+func splitAppKey(key string) (author, name string) {
+	parts := strings.SplitN(key, "/", 2)
+	author = parts[0]
+	name = parts[0]
+	if len(parts) == 2 {
+		name = parts[1]
+	} else {
+		author = ""
+	}
+	return author, name
 }
 
 func init() {
