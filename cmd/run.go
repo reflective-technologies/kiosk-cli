@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
@@ -93,6 +94,15 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 		return fmt.Errorf("app directory missing: %s (try removing and reinstalling)", appPath)
 	}
 
+	prompt := runPrompt
+	updateInfo, err := updateRepoIfNeeded(appPath)
+	if err != nil {
+		return err
+	}
+	if updateInfo != nil && updateInfo.updated {
+		prompt = buildUpdatePrompt(updateInfo)
+	}
+
 	// Apply sandbox settings if specified
 	if len(sandboxValues) > 0 {
 		fmt.Printf("Configuring sandbox mode...\n")
@@ -103,7 +113,7 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 
 	fmt.Printf("Running %s...\n", key)
 	fmt.Print(logo)
-	return execClaude(appPath, runPrompt, safe)
+	return execClaude(appPath, prompt, safe)
 }
 
 // installAndRunApp fetches an app from the API and installs it
@@ -197,6 +207,114 @@ func extractOrgRepo(gitUrl string) string {
 	return ""
 }
 
+type updateInfo struct {
+	updated          bool
+	oldCommit        string
+	newCommit        string
+	hadStash         bool
+	unstashConflicts bool
+}
+
+func updateRepoIfNeeded(appPath string) (*updateInfo, error) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, nil
+	}
+
+	inside, err := gitOutput(appPath, "rev-parse", "--is-inside-work-tree")
+	if err != nil || inside != "true" {
+		return nil, nil
+	}
+
+	oldCommit, err := gitOutput(appPath, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, nil
+	}
+
+	if err := gitRun(appPath, "fetch", "--quiet"); err != nil {
+		fmt.Printf("Warning: failed to fetch updates in %s: %v\n", appPath, err)
+		return nil, nil
+	}
+
+	counts, err := gitOutput(appPath, "rev-list", "--left-right", "--count", "HEAD...@{u}")
+	if err != nil {
+		return nil, nil
+	}
+
+	parts := strings.Fields(counts)
+	if len(parts) != 2 {
+		return nil, nil
+	}
+
+	ahead, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, nil
+	}
+	behind, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, nil
+	}
+
+	if behind == 0 {
+		return nil, nil
+	}
+	if ahead > 0 {
+		return nil, fmt.Errorf("local branch has diverged from upstream in %s; resolve manually before running", appPath)
+	}
+
+	hasChanges := false
+	status, err := gitOutput(appPath, "status", "--porcelain")
+	if err == nil && strings.TrimSpace(status) != "" {
+		hasChanges = true
+		if err := gitRun(appPath, "stash", "push", "-u", "-m", "kiosk: pre-update stash"); err != nil {
+			return nil, fmt.Errorf("failed to stash local changes: %w", err)
+		}
+	}
+
+	if err := gitRun(appPath, "pull", "--ff-only"); err != nil {
+		if hasChanges {
+			_ = gitRun(appPath, "stash", "pop")
+		}
+		return nil, err
+	}
+
+	newCommit, err := gitOutput(appPath, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+
+	unstashConflicts := false
+	if hasChanges {
+		if err := gitRun(appPath, "stash", "pop"); err != nil {
+			unstashConflicts = true
+		}
+	}
+
+	return &updateInfo{
+		updated:          true,
+		oldCommit:        oldCommit,
+		newCommit:        newCommit,
+		hadStash:         hasChanges,
+		unstashConflicts: unstashConflicts,
+	}, nil
+}
+
+func buildUpdatePrompt(info *updateInfo) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "You are resuming an app that was previously set up and run at commit %s.\n", info.oldCommit)
+	fmt.Fprintf(&b, "The repository has been updated to commit %s on the current branch.\n", info.newCommit)
+	fmt.Fprintf(&b, "Review changes between %s and %s (git log --oneline %s..%s or git diff %s..%s).\n", info.oldCommit, info.newCommit, info.oldCommit, info.newCommit, info.oldCommit, info.newCommit)
+	if info.hadStash {
+		if info.unstashConflicts {
+			b.WriteString("Local changes were stashed and re-applied; resolve any merge conflicts from the unstash and drop the stash if it remains.\n")
+		} else {
+			b.WriteString("Local changes were stashed and re-applied; verify they still apply cleanly.\n")
+		}
+	}
+	b.WriteString("Apply any configuration fixes or updates needed to get the app running again for the user.\n")
+	b.WriteString(runPrompt)
+	return b.String()
+}
+
 func cloneRepo(gitURL, dest string) error {
 	if gitURL == "" {
 		return fmt.Errorf("app has no git URL to clone")
@@ -219,6 +337,34 @@ func runCommand(cmd *exec.Cmd, dir string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		out := strings.TrimSpace(string(output))
+		if out != "" {
+			return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), out)
+		}
+		return "", fmt.Errorf("git %s failed: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func gitRun(dir string, args ...string) error {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		out := strings.TrimSpace(string(output))
+		if out != "" {
+			return fmt.Errorf("git %s failed: %s", strings.Join(args, " "), out)
+		}
+		return fmt.Errorf("git %s failed: %w", strings.Join(args, " "), err)
+	}
+	return nil
 }
 
 // execClaude runs claude in the given directory with the given prompt
