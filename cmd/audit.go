@@ -83,7 +83,7 @@ func execClaudeAudit(dir, prompt string) error {
 	}()
 
 	if term.IsTerminal(int(os.Stdout.Fd())) {
-		dots := []string{".", "..", "..."}
+		dots := []string{".  ", ".. ", "..."}
 		i := 0
 		ticker := time.NewTicker(400 * time.Millisecond)
 		defer ticker.Stop()
