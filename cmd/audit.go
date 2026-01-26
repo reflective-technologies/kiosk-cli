@@ -33,7 +33,9 @@ Report your findings clearly, listing:
 - Severity (critical/warning/info)
 - Recommended remediation steps
 
-If no issues are found, confirm the repository appears safe for publication.`
+If no issues are found, confirm the repository appears safe for publication.
+
+IMPORTANT: Output ONLY the markdown report. No preamble, no explanations, no follow-up questions—just the report itself.`
 
 var auditCmd = &cobra.Command{
 	Use:   "audit",
