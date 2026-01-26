@@ -24,7 +24,7 @@ Perform the following checks:
    - Environment files (.env) that shouldn't be committed
 
 2. **Git history scan**: Check the git history for any previously committed secrets that may have been removed:
-   - Run: git log -p --all -S 'API_KEY\|SECRET\|TOKEN\|PASSWORD\|PRIVATE_KEY' --pickaxe-regex
+   - Run: git log -p --all -S 'API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY' --pickaxe-regex
    - Also check: git log -p --all -- '*.env' '.env*'
    - Look for any commits that added then removed sensitive data
 
