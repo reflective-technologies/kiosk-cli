@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
@@ -20,6 +22,33 @@ Claude Code will guide you through the publishing process.
 
 Note: Run 'kiosk init' first to create a KIOSK.md file if you don't have one.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check if audit flag is set
+		runAudit, _ := cmd.Flags().GetBool("audit")
+		if runAudit {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+
+			if err := execClaudeAudit(cwd, auditPrompt); err != nil {
+				return fmt.Errorf("audit failed: %w", err)
+			}
+
+			fmt.Print("\nContinue with publish? [y/N]: ")
+			reader := bufio.NewReader(os.Stdin)
+			response, err := reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("failed to read response: %w", err)
+			}
+
+			response = strings.TrimSpace(strings.ToLower(response))
+			if response != "y" && response != "yes" {
+				fmt.Println("Publish cancelled.")
+				return nil
+			}
+			fmt.Println()
+		}
+
 		// Check authentication
 		if !auth.IsLoggedIn() {
 			return fmt.Errorf("not logged in, run 'kiosk login' first")
@@ -74,4 +103,5 @@ func kioskMdExists(dir string) bool {
 func init() {
 	rootCmd.AddCommand(publishCmd)
 	publishCmd.Flags().Bool("safe", false, "Run Claude Code in safe mode (prompts for permissions)")
+	publishCmd.Flags().Bool("audit", false, "Run security audit before publishing")
 }
