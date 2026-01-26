@@ -105,7 +105,8 @@ func execClaudeAudit(dir, prompt string) error {
 
 	output := stdout.String()
 
-	fmt.Println("Audit results:\n")
+	fmt.Println("Audit results:")
+	fmt.Println()
 
 	if term.IsTerminal(int(os.Stdout.Fd())) {
 		renderer, err := glamour.NewTermRenderer(
