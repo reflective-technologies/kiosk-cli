@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
@@ -76,11 +77,41 @@ func execClaudeAudit(dir, prompt string) error {
 	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return err
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Run()
+	}()
+
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		dots := []string{".", "..", "..."}
+		i := 0
+		ticker := time.NewTicker(400 * time.Millisecond)
+		defer ticker.Stop()
+
+		fmt.Print("Running security audit.")
+	loop:
+		for {
+			select {
+			case err := <-done:
+				fmt.Print("\r\033[K")
+				if err != nil {
+					return err
+				}
+				break loop
+			case <-ticker.C:
+				i = (i + 1) % len(dots)
+				fmt.Printf("\rRunning security audit%s", dots[i])
+			}
+		}
+	} else {
+		if err := <-done; err != nil {
+			return err
+		}
 	}
 
 	output := stdout.String()
+
+	fmt.Println("Audit results:\n")
 
 	if term.IsTerminal(int(os.Stdout.Fd())) {
 		renderer, err := glamour.NewTermRenderer(
