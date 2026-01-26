@@ -71,7 +71,6 @@ func execClaudeAudit(dir, prompt string) error {
 
 	cmd := exec.Command(claudePath, "-p", prompt)
 	cmd.Dir = dir
-	cmd.Stdin = os.Stdin
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
