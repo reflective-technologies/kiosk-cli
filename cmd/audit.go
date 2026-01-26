@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 const auditPrompt = `You are auditing this application for security issues before it is published to a public repository.
@@ -35,7 +38,9 @@ Report your findings clearly, listing:
 
 If no issues are found, confirm the repository appears safe for publication.
 
-IMPORTANT: Output ONLY the markdown report. No preamble, no explanations, no follow-up questions—just the report itself.`
+IMPORTANT: 
+- Output ONLY the markdown report. No preamble, no explanations, no follow-up questions—just the report itself.
+- Format your response as valid markdown with proper headers, lists, and code blocks where appropriate.`
 
 var auditCmd = &cobra.Command{
 	Use:   "audit",
@@ -66,10 +71,33 @@ func execClaudeAudit(dir, prompt string) error {
 	cmd := exec.Command(claudePath, "-p", prompt)
 	cmd.Dir = dir
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	output := stdout.String()
+
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(80),
+		)
+		if err == nil {
+			rendered, err := renderer.Render(output)
+			if err == nil {
+				fmt.Print(rendered)
+				return nil
+			}
+		}
+	}
+
+	fmt.Print(output)
+	return nil
 }
 
 func init() {
