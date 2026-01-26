@@ -371,16 +371,11 @@ func gitRun(dir string, args ...string) error {
 	return nil
 }
 
-// execClaude runs claude in the given directory with the given prompt
-func execClaude(dir, prompt string, safe bool) error {
-	permissionMode := "bypassPermissions"
-	if safe {
-		permissionMode = "default"
-	}
-
+// claudeCmd builds an exec.Cmd for running claude with the given args.
+// It falls back to running through the user's shell if claude is not in PATH.
+func claudeCmd(args ...string) *exec.Cmd {
 	if _, err := exec.LookPath("claude"); err == nil {
-		cmd := exec.Command("claude", "--permission-mode", permissionMode, prompt)
-		return runCommand(cmd, dir)
+		return exec.Command("claude", args...)
 	}
 
 	shell := os.Getenv("SHELL")
@@ -388,7 +383,21 @@ func execClaude(dir, prompt string, safe bool) error {
 		shell = "sh"
 	}
 
-	cmd := exec.Command(shell, "-i", "-c", "claude --permission-mode \"$1\" \"$2\"", "claude", permissionMode, prompt)
+	// Build shell command with positional args
+	// Format: shell -i -c 'claude "$@"' claude arg1 arg2 ...
+	shellArgs := []string{"-i", "-c", `claude "$@"`, "claude"}
+	shellArgs = append(shellArgs, args...)
+	return exec.Command(shell, shellArgs...)
+}
+
+// execClaude runs claude in the given directory with the given prompt
+func execClaude(dir, prompt string, safe bool) error {
+	permissionMode := "bypassPermissions"
+	if safe {
+		permissionMode = "default"
+	}
+
+	cmd := claudeCmd("--permission-mode", permissionMode, prompt)
 	return runCommand(cmd, dir)
 }
 

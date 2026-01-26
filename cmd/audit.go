@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
+
 	"time"
 
 	"github.com/charmbracelet/glamour"
@@ -64,12 +64,7 @@ This command runs Claude with an audit-focused prompt and prints the results.`,
 }
 
 func execClaudeAudit(dir, prompt string) error {
-	claudePath, err := exec.LookPath("claude")
-	if err != nil {
-		return fmt.Errorf("claude not found in PATH: %w", err)
-	}
-
-	cmd := exec.Command(claudePath, "-p", prompt)
+	cmd := claudeCmd("-p", prompt)
 	cmd.Dir = dir
 
 	var stdout bytes.Buffer
