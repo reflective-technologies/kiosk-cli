@@ -30,7 +30,8 @@ Note: Run 'kiosk init' first to create a KIOSK.md file if you don't have one.`,
 				return fmt.Errorf("failed to get current directory: %w", err)
 			}
 
-			fmt.Println("Running security audit...")
+			fmt.Println("Running security audit...\n")
+			fmt.Println("Audit results:")
 			if err := execClaudeAudit(cwd, auditPrompt); err != nil {
 				return fmt.Errorf("audit failed: %w", err)
 			}
