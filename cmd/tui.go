@@ -32,42 +32,35 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// Create the main TUI model
 	m := tui.New()
 
-	// Create view models
+	// Create view models (as pointers so SetSize works correctly)
 	homeView := views.NewHomeModel()
 	appListView := views.NewAppListModel()
 	browseView := views.NewBrowseModel()
-	libraryView := views.NewLibraryModel()
+	publishView := views.NewPublishModel()
 	helpView := views.NewHelpModel()
 	loginView := views.NewLoginModel()
 	auditView := views.NewAuditModel()
 
-	// Set views on the main model
-	m.SetHomeView(homeView)
-	m.SetAppListView(appListView)
-	m.SetBrowseView(browseView)
-	m.SetLibraryView(libraryView)
-	m.SetHelpView(helpView)
-	m.SetLoginView(loginView)
-	m.SetAuditView(auditView)
+	// Set views on the main model (pass as pointers)
+	m.SetHomeView(&homeView)
+	m.SetAppListView(&appListView)
+	m.SetBrowseView(&browseView)
+	m.SetPublishView(&publishView)
+	m.SetHelpView(&helpView)
+	m.SetLoginView(&loginView)
+	m.SetAuditView(&auditView)
 
 	// Create the program with alternate screen buffer
 	p := tea.NewProgram(
-		m,
+		&m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 
 	// Run the TUI
-	finalModel, err := p.Run()
+	_, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("error running TUI: %w", err)
-	}
-
-	// Check if there was an error in the final model
-	if model, ok := finalModel.(tui.Model); ok {
-		if model.HomeView != nil {
-			// We could check for errors here
-		}
 	}
 
 	return nil
@@ -82,13 +75,13 @@ func RunTUIPostInstall(appName, appKey, appPath string) error {
 	postInstallView := views.NewPostInstallModel(appName, appKey, appPath)
 
 	// Set the view
-	m.SetPostInstallView(postInstallView)
+	m.SetPostInstallView(&postInstallView)
 
 	// Navigate directly to post-install
 	// We need to send a message to navigate
 	p := tea.NewProgram(
-		postInstallModel{
-			model:   m,
+		&postInstallModel{
+			model:   &m,
 			appName: appName,
 			appKey:  appKey,
 			appPath: appPath,
@@ -106,16 +99,16 @@ func RunTUIPostInstall(appName, appKey, appPath string) error {
 
 // postInstallModel wraps the TUI model to start in post-install mode
 type postInstallModel struct {
-	model   tui.Model
+	model   *tui.Model
 	appName string
 	appKey  string
 	appPath string
 	started bool
 }
 
-func (m postInstallModel) Init() tea.Cmd {
+func (m *postInstallModel) Init() tea.Cmd {
 	postInstallView := views.NewPostInstallModel(m.appName, m.appKey, m.appPath)
-	m.model.SetPostInstallView(postInstallView)
+	m.model.SetPostInstallView(&postInstallView)
 
 	return tea.Batch(
 		m.model.Init(),
@@ -125,7 +118,7 @@ func (m postInstallModel) Init() tea.Cmd {
 	)
 }
 
-func (m postInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *postInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle quit from post-install
 	if _, ok := msg.(tui.GoBackMsg); ok {
 		return m, tea.Quit
@@ -139,12 +132,11 @@ func (m postInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	newModel, cmd := m.model.Update(msg)
-	m.model = newModel.(tui.Model)
+	_, cmd = m.model.Update(msg)
 	return m, cmd
 }
 
-func (m postInstallModel) View() string {
+func (m *postInstallModel) View() string {
 	return m.model.View()
 }
 

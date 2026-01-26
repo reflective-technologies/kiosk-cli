@@ -65,14 +65,14 @@ func (m *LoginModel) SetSize(width, height int) {
 }
 
 // Init initializes the login model
-func (m LoginModel) Init() tea.Cmd {
+func (m *LoginModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
 		m.requestDeviceCode,
 	)
 }
 
-func (m LoginModel) requestDeviceCode() tea.Msg {
+func (m *LoginModel) requestDeviceCode() tea.Msg {
 	cfg, err := config.Load()
 	if err != nil {
 		return tui.ErrorMsg{Err: fmt.Errorf("failed to load config: %w", err)}
@@ -92,7 +92,7 @@ func (m LoginModel) requestDeviceCode() tea.Msg {
 }
 
 // pollForAuth is a command that polls for auth completion
-func (m LoginModel) pollForAuth() tea.Cmd {
+func (m *LoginModel) pollForAuth() tea.Cmd {
 	return func() tea.Msg {
 		cfg, err := config.Load()
 		if err != nil {
@@ -132,7 +132,7 @@ func (m LoginModel) pollForAuth() tea.Cmd {
 }
 
 // Update handles messages for the login view
-func (m LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -186,7 +186,7 @@ func (m LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the login view
-func (m LoginModel) View() string {
+func (m *LoginModel) View() string {
 	var b strings.Builder
 
 	titleStyle := styles.Title.Copy().MarginBottom(1)

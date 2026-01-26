@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
 )
@@ -89,6 +90,19 @@ type AuditStartedMsg struct{}
 type AuditCompleteMsg struct {
 	Result string
 	Err    error
+}
+
+// Browse apps messages
+
+// BrowseAppsLoadedMsg is sent when apps have been loaded from the API
+type BrowseAppsLoadedMsg struct {
+	Apps []api.App
+	Err  error
+}
+
+// BrowseAppSelectedMsg is sent when a user selects an app to install
+type BrowseAppSelectedMsg struct {
+	App api.App
 }
 
 // Generic messages

@@ -8,7 +8,7 @@ const (
 	ViewAppList
 	ViewAppDetail
 	ViewBrowse
-	ViewLibrary
+	ViewPublish
 	ViewHelp
 	ViewLogin
 	ViewAudit
@@ -27,8 +27,8 @@ func (v ViewType) String() string {
 		return "App Detail"
 	case ViewBrowse:
 		return "Browse Apps"
-	case ViewLibrary:
-		return "Library"
+	case ViewPublish:
+		return "Publish App"
 	case ViewHelp:
 		return "Help"
 	case ViewLogin:

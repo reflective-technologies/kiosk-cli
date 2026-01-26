@@ -48,9 +48,9 @@ func (m *HomeModel) updateMenuItems() {
 			action:      func() tea.Msg { return tui.NavigateMsg{View: tui.ViewBrowse} },
 		},
 		{
-			title:       "Library",
-			description: "Your app collection and history",
-			action:      func() tea.Msg { return tui.NavigateMsg{View: tui.ViewLibrary} },
+			title:       "Publish App",
+			description: "Publish your app to Kiosk",
+			action:      func() tea.Msg { return tui.NavigateMsg{View: tui.ViewPublish} },
 		},
 		{
 			title:       "Help",
@@ -67,12 +67,12 @@ func (m *HomeModel) SetSize(width, height int) {
 }
 
 // Init initializes the home model
-func (m HomeModel) Init() tea.Cmd {
+func (m *HomeModel) Init() tea.Cmd {
 	return nil
 }
 
 // Update handles messages for the home view
-func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -95,23 +95,22 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the home view
-func (m HomeModel) View() string {
+func (m *HomeModel) View() string {
 	var b strings.Builder
 
-	// Logo
-	b.WriteString(styles.LogoWithText())
-	b.WriteString("\n")
+	// Calculate available width for content
+	contentWidth := m.width
+	if contentWidth <= 0 {
+		contentWidth = 80 // reasonable default
+	}
 
-	// Welcome message
-	welcomeStyle := lipgloss.NewStyle().
-		Foreground(styles.Foreground).
-		Bold(true).
-		MarginBottom(1)
+	// Logo - only show if terminal is wide enough
+	if contentWidth >= 90 {
+		b.WriteString(styles.LogoStyled())
+		b.WriteString("\n\n")
+	}
 
-	b.WriteString(welcomeStyle.Render("Welcome to Kiosk"))
-	b.WriteString("\n\n")
-
-	// Menu items
+	// Menu items - use MaxWidth to truncate if needed
 	for i, item := range m.items {
 		cursor := "  "
 		itemStyle := lipgloss.NewStyle().Foreground(styles.Foreground)
@@ -122,16 +121,24 @@ func (m HomeModel) View() string {
 			itemStyle = itemStyle.Bold(true).Foreground(styles.Primary)
 		}
 
-		b.WriteString(cursor)
-		b.WriteString(itemStyle.Render(item.title))
+		// Calculate remaining width for description
+		titleLen := len(item.title) + 5 // cursor (2) + title + " - " (3)
+		descWidth := contentWidth - titleLen
+		if descWidth < 10 {
+			descWidth = 10
+		}
+
+		line := cursor + itemStyle.Render(item.title) + " " + descStyle.Render("- "+item.description)
+
+		// Truncate line if it exceeds content width
+		lineStyle := lipgloss.NewStyle().MaxWidth(contentWidth)
+		b.WriteString(lineStyle.Render(line))
 		b.WriteString("\n")
-		b.WriteString("    ")
-		b.WriteString(descStyle.Render(item.description))
-		b.WriteString("\n\n")
 	}
 
 	// Help
-	helpStyle := lipgloss.NewStyle().Foreground(styles.Muted).MarginTop(2)
+	b.WriteString("\n")
+	helpStyle := lipgloss.NewStyle().Foreground(styles.Muted).MaxWidth(contentWidth)
 	b.WriteString(helpStyle.Render("↑/↓ navigate • enter select • q quit"))
 
 	return b.String()

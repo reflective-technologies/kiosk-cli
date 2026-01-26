@@ -31,12 +31,12 @@ func (m *HelpModel) SetSize(width, height int) {
 }
 
 // Init initializes the help model
-func (m HelpModel) Init() tea.Cmd {
+func (m *HelpModel) Init() tea.Cmd {
 	return nil
 }
 
 // Update handles messages for the help view
-func (m HelpModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *HelpModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -49,7 +49,7 @@ func (m HelpModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the help view
-func (m HelpModel) View() string {
+func (m *HelpModel) View() string {
 	var b strings.Builder
 
 	titleStyle := styles.Title.Copy().MarginBottom(1)

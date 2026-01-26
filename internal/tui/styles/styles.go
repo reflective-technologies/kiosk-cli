@@ -6,8 +6,8 @@ import (
 
 // Colors
 var (
-	Primary    = lipgloss.Color("#7C3AED") // Purple
-	Secondary  = lipgloss.Color("#06B6D4") // Cyan
+	Primary    = lipgloss.Color("#3B5BF7") // Blue
+	Secondary  = lipgloss.Color("#35C1FF") // Light blue
 	Success    = lipgloss.Color("#10B981") // Green
 	Warning    = lipgloss.Color("#F59E0B") // Amber
 	Error      = lipgloss.Color("#EF4444") // Red
@@ -103,47 +103,18 @@ var (
 			Foreground(Foreground)
 )
 
-// Logo is the ASCII art kiosk icon (scaled down)
-const Logo = `     ███
-   ███████
- ████████████████
-████  █████  ████
- ████████████████
-   ██████ █████
-   ████     ████
-   ████████████
-    ████   ████
-     ██     ██`
+// Logo is the ASCII art kiosk text logo
+const Logo = `.++++.   .=++++= .++++    .-++*****++-.    .-++*****++-.   ++++.   .=++++=          
+:****: .+****+.  :****. .+*****+++*****+..-****+=-=*****= .****: .=****+:.          
+:****:+****=.    :****..*****:     :****+.+***+:.. ..:::. .****-=****+.             
+:**********:     :****..****=       -****.:***********+=. .**********-              
+:*****++****+.   :****..****=.      =****.   .:--==+*****-.*****++*****.            
+:****: .=*****:. :****. -****=.. .:+****-.****+..  .+****=.****:  -*****-.          
+:****.   .*****+.:****. .:+***********+.  :+************- .****:   .+****+.`
 
-// LogoText is the text "kiosk" in stylized form
-const LogoText = `
- _    _           _    
-| | _(_) ___  ___| | __
-| |/ / |/ _ \/ __| |/ /
-|   <| | (_) \__ \   < 
-|_|\_\_|\___/|___/_|\_\`
-
-// LogoStyled returns the logo icon with styling applied
+// LogoStyled returns the logo with styling applied
 func LogoStyled() string {
 	return lipgloss.NewStyle().
 		Foreground(Primary).
-		Bold(true).
 		Render(Logo)
-}
-
-// LogoWithText returns the logo icon alongside the text logo
-func LogoWithText() string {
-	iconStyle := lipgloss.NewStyle().
-		Foreground(Primary).
-		MarginRight(2)
-
-	textStyle := lipgloss.NewStyle().
-		Foreground(Primary).
-		Bold(true)
-
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		iconStyle.Render(Logo),
-		textStyle.Render(LogoText),
-	)
 }

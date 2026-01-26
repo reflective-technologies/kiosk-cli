@@ -117,12 +117,12 @@ func (m *PostInstallModel) SetSize(width, height int) {
 }
 
 // Init initializes the post-install model
-func (m PostInstallModel) Init() tea.Cmd {
+func (m *PostInstallModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
 // Update handles messages for the post-install view
-func (m PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -188,7 +188,7 @@ func (m PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m PostInstallModel) executeOption(opt PostInstallOption) tea.Cmd {
+func (m *PostInstallModel) executeOption(opt PostInstallOption) tea.Cmd {
 	// This would normally execute the command
 	// For now, we just return a success message
 	return func() tea.Msg {
@@ -208,7 +208,7 @@ func (m *PostInstallModel) SetCloneProgress(percent int, message string) {
 }
 
 // View renders the post-install view
-func (m PostInstallModel) View() string {
+func (m *PostInstallModel) View() string {
 	var b strings.Builder
 
 	// App name header

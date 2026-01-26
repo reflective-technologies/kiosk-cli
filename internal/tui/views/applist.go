@@ -25,18 +25,21 @@ type appItem struct {
 }
 
 func (i appItem) Title() string {
+	// Format: {APP_NAME} by {AUTHOR}
 	title := i.name
+	if i.author != "" {
+		title = fmt.Sprintf("%s by %s", title, i.author)
+	}
 	if i.missing {
 		title += styles.WarningStyle.Render(" (missing)")
 	}
 	return title
 }
+
 func (i appItem) Description() string {
-	if i.description != "" {
-		return i.description
-	}
-	return "by " + i.author
+	return i.description
 }
+
 func (i appItem) FilterValue() string { return i.name + " " + i.author + " " + i.description }
 
 // AppListModel is the model for the app list view
@@ -55,18 +58,33 @@ type AppListModel struct {
 func NewAppListModel() AppListModel {
 	// Create a custom delegate
 	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(styles.Primary).
-		BorderForeground(styles.Primary)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(styles.Secondary).
-		BorderForeground(styles.Primary)
+	// Keep text colors consistent - only use indicator for selection
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().
+		Foreground(styles.Foreground).
+		Padding(0, 0, 0, 2) // indent to align with selected items
+	delegate.Styles.NormalDesc = lipgloss.NewStyle().
+		Foreground(styles.Muted).
+		Padding(0, 0, 0, 2)
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(styles.Primary).
+		Foreground(styles.Foreground).
+		Padding(0, 0, 0, 1)
+	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(styles.Primary).
+		Foreground(styles.Muted).
+		Padding(0, 0, 0, 1)
+	delegate.SetSpacing(0)
+	delegate.SetHeight(3) // Title + Description + blank line for spacing
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
 	l.Title = "My Apps"
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
-	l.Styles.Title = styles.Title
+	l.Styles.Title = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.Primary)
 	l.Styles.FilterPrompt = lipgloss.NewStyle().Foreground(styles.Primary)
 	l.Styles.FilterCursor = lipgloss.NewStyle().Foreground(styles.Secondary)
 
@@ -86,11 +104,11 @@ func (m *AppListModel) SetSize(width, height int) {
 }
 
 // Init initializes the app list model
-func (m AppListModel) Init() tea.Cmd {
+func (m *AppListModel) Init() tea.Cmd {
 	return m.loadApps
 }
 
-func (m AppListModel) loadApps() tea.Msg {
+func (m *AppListModel) loadApps() tea.Msg {
 	idx, err := appindex.Load()
 	if err != nil {
 		return tui.AppsLoadedMsg{Err: err}
@@ -99,7 +117,7 @@ func (m AppListModel) loadApps() tea.Msg {
 }
 
 // Update handles messages for the app list view
-func (m AppListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *AppListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -195,7 +213,7 @@ func splitAppKey(key string) (author, name string) {
 }
 
 // View renders the app list view
-func (m AppListModel) View() string {
+func (m *AppListModel) View() string {
 	if m.loading {
 		return styles.MutedStyle.Render("Loading apps...")
 	}
@@ -211,28 +229,37 @@ func (m AppListModel) View() string {
 	return m.list.View()
 }
 
-func (m AppListModel) emptyView() string {
+func (m *AppListModel) emptyView() string {
 	var b strings.Builder
 
-	titleStyle := styles.Title.Copy().MarginBottom(2)
+	// Calculate available width for content
+	contentWidth := m.width
+	if contentWidth <= 0 {
+		contentWidth = 80
+	}
+
+	titleStyle := styles.Title.Copy().MaxWidth(contentWidth)
 	b.WriteString(titleStyle.Render("My Apps"))
 	b.WriteString("\n\n")
 
 	emptyStyle := lipgloss.NewStyle().
 		Foreground(styles.Muted).
 		Italic(true).
-		MarginLeft(2)
+		MarginLeft(2).
+		MaxWidth(contentWidth)
 
 	b.WriteString(emptyStyle.Render("No apps installed yet."))
 	b.WriteString("\n\n")
 
-	hintStyle := lipgloss.NewStyle().Foreground(styles.Muted)
+	hintStyle := lipgloss.NewStyle().
+		Foreground(styles.Muted).
+		MaxWidth(contentWidth)
 	b.WriteString(hintStyle.Render("  Run an app with: kiosk run <app>"))
 	b.WriteString("\n")
 	b.WriteString(hintStyle.Render("  Example: kiosk run anthropic/claude-starter"))
 	b.WriteString("\n\n")
 
-	helpStyle := lipgloss.NewStyle().Foreground(styles.Muted)
+	helpStyle := lipgloss.NewStyle().Foreground(styles.Muted).MaxWidth(contentWidth)
 	b.WriteString(helpStyle.Render("  Press esc to go back"))
 
 	return b.String()

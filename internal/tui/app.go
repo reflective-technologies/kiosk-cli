@@ -24,7 +24,7 @@ type Model struct {
 	HomeView        tea.Model
 	AppListView     tea.Model
 	BrowseView      tea.Model
-	LibraryView     tea.Model
+	PublishView     tea.Model
 	HelpView        tea.Model
 	LoginView       tea.Model
 	AuditView       tea.Model
@@ -61,9 +61,9 @@ func (m *Model) SetBrowseView(v tea.Model) {
 	m.BrowseView = v
 }
 
-// SetLibraryView sets the library view model
-func (m *Model) SetLibraryView(v tea.Model) {
-	m.LibraryView = v
+// SetPublishView sets the publish view model
+func (m *Model) SetPublishView(v tea.Model) {
+	m.PublishView = v
 }
 
 // SetHelpView sets the help view model
@@ -82,7 +82,7 @@ func (m *Model) SetPostInstallView(v tea.Model) {
 }
 
 // Init initializes the TUI application
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
 	// Initialize the home view
@@ -94,7 +94,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update handles messages for the TUI application
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -149,14 +149,23 @@ type Sizer interface {
 }
 
 func (m *Model) updateViewSizes() {
-	// Calculate content area (accounting for any chrome)
-	contentHeight := m.height - 2 // Leave room for status/help
+	// Calculate content area (accounting for padding applied in View())
+	// Padding(1, 2) means 1 line top/bottom, 2 chars left/right
+	contentWidth := m.width - 4   // Account for horizontal padding (2 left + 2 right)
+	contentHeight := m.height - 4 // Account for vertical padding (1 top + 1 bottom) + status/help
+
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+	if contentHeight < 10 {
+		contentHeight = 10
+	}
 
 	views := []tea.Model{
 		m.HomeView,
 		m.AppListView,
 		m.BrowseView,
-		m.LibraryView,
+		m.PublishView,
 		m.HelpView,
 		m.LoginView,
 		m.AuditView,
@@ -166,7 +175,7 @@ func (m *Model) updateViewSizes() {
 	for _, v := range views {
 		if v != nil {
 			if sizer, ok := v.(Sizer); ok {
-				sizer.SetSize(m.width, contentHeight)
+				sizer.SetSize(contentWidth, contentHeight)
 			}
 		}
 	}
@@ -200,9 +209,9 @@ func (m Model) initCurrentView() tea.Cmd {
 		if m.BrowseView != nil {
 			return m.BrowseView.Init()
 		}
-	case ViewLibrary:
-		if m.LibraryView != nil {
-			return m.LibraryView.Init()
+	case ViewPublish:
+		if m.PublishView != nil {
+			return m.PublishView.Init()
 		}
 	case ViewHelp:
 		if m.HelpView != nil {
@@ -240,9 +249,9 @@ func (m *Model) updateCurrentView(msg tea.Msg) tea.Cmd {
 		if m.BrowseView != nil {
 			m.BrowseView, cmd = m.BrowseView.Update(msg)
 		}
-	case ViewLibrary:
-		if m.LibraryView != nil {
-			m.LibraryView, cmd = m.LibraryView.Update(msg)
+	case ViewPublish:
+		if m.PublishView != nil {
+			m.PublishView, cmd = m.PublishView.Update(msg)
 		}
 	case ViewHelp:
 		if m.HelpView != nil {
@@ -266,7 +275,7 @@ func (m *Model) updateCurrentView(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the TUI application
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
@@ -286,9 +295,9 @@ func (m Model) View() string {
 		if m.BrowseView != nil {
 			content = m.BrowseView.View()
 		}
-	case ViewLibrary:
-		if m.LibraryView != nil {
-			content = m.LibraryView.View()
+	case ViewPublish:
+		if m.PublishView != nil {
+			content = m.PublishView.View()
 		}
 	case ViewHelp:
 		if m.HelpView != nil {

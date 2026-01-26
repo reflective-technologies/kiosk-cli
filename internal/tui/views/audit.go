@@ -103,14 +103,14 @@ func (m *AuditModel) SetSize(width, height int) {
 }
 
 // Init initializes the audit model
-func (m AuditModel) Init() tea.Cmd {
+func (m *AuditModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
 		m.runAudit,
 	)
 }
 
-func (m AuditModel) runAudit() tea.Msg {
+func (m *AuditModel) runAudit() tea.Msg {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return tui.AuditCompleteMsg{Err: err}
@@ -147,7 +147,7 @@ func claudeCmd(args ...string) *exec.Cmd {
 }
 
 // Update handles messages for the audit view
-func (m AuditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *AuditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -210,7 +210,7 @@ func (m AuditModel) renderMarkdown(content string) (string, error) {
 }
 
 // View renders the audit view
-func (m AuditModel) View() string {
+func (m *AuditModel) View() string {
 	var b strings.Builder
 
 	titleStyle := styles.Title.Copy().MarginBottom(1)
