@@ -105,6 +105,31 @@ type BrowseAppSelectedMsg struct {
 	App api.App
 }
 
+// App detail messages
+
+// ShowAppDetailMsg is sent to show app detail view
+type ShowAppDetailMsg struct {
+	App         *api.App
+	IsInstalled bool
+	AppKey      string // for installed apps (e.g., "owner/repo")
+}
+
+// RunAppMsg is sent when user wants to run an app
+type RunAppMsg struct {
+	AppKey string
+	GitURL string
+}
+
+// DeleteAppMsg is sent when user wants to delete an app
+type DeleteAppMsg struct {
+	AppKey string
+}
+
+// ExecAppMsg signals the TUI to quit and execute an app
+type ExecAppMsg struct {
+	AppKey string
+}
+
 // Generic messages
 
 // ErrorMsg represents an error that occurred

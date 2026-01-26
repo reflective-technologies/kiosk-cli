@@ -155,8 +155,13 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Enter):
 			if !m.loading && m.err == nil {
 				if item, ok := m.list.SelectedItem().(browseItem); ok {
+					app := item.app // capture for closure
 					return m, func() tea.Msg {
-						return tui.BrowseAppSelectedMsg{App: item.app}
+						return tui.ShowAppDetailMsg{
+							App:         &app,
+							IsInstalled: false,
+							AppKey:      app.ID,
+						}
 					}
 				}
 			}

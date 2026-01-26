@@ -1,9 +1,14 @@
 package tui
 
 import (
+	"os"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 )
 
@@ -19,10 +24,14 @@ type Model struct {
 	status      string
 	err         error
 
+	// App to execute after TUI exits (set when user clicks Run)
+	ExecApp string
+
 	// View models - these will be set by the cmd package
 	// to avoid circular imports
 	HomeView        tea.Model
 	AppListView     tea.Model
+	AppDetailView   tea.Model
 	BrowseView      tea.Model
 	PublishView     tea.Model
 	HelpView        tea.Model
@@ -49,6 +58,11 @@ func (m *Model) SetHomeView(v tea.Model) {
 // SetAppListView sets the app list view model
 func (m *Model) SetAppListView(v tea.Model) {
 	m.AppListView = v
+}
+
+// SetAppDetailView sets the app detail view model
+func (m *Model) SetAppDetailView(v tea.Model) {
+	m.AppDetailView = v
 }
 
 // SetLoginView sets the login view model
@@ -126,6 +140,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.goBack()
 		cmds = append(cmds, m.initCurrentView())
 
+	case ShowAppDetailMsg:
+		// Navigate to app detail and pass the app data
+		m.navigateTo(ViewAppDetail)
+		if m.AppDetailView != nil {
+			// Update the detail view with the app info
+			m.AppDetailView, _ = m.AppDetailView.Update(msg)
+		}
+		cmds = append(cmds, m.initCurrentView())
+
+	case RunAppMsg:
+		// Store the app key to execute after TUI exits
+		m.ExecApp = msg.AppKey
+		return m, tea.Quit
+
+	case DeleteAppMsg:
+		// Delete the app and go back to previous view
+		cmds = append(cmds, m.deleteApp(msg.AppKey))
+
+	case AppRemovedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+		} else {
+			m.status = "App removed successfully"
+			// Go back to previous view and refresh
+			m.goBack()
+			cmds = append(cmds, m.initCurrentView())
+		}
+
 	case ErrorMsg:
 		m.err = msg.Err
 
@@ -164,6 +206,7 @@ func (m *Model) updateViewSizes() {
 	views := []tea.Model{
 		m.HomeView,
 		m.AppListView,
+		m.AppDetailView,
 		m.BrowseView,
 		m.PublishView,
 		m.HelpView,
@@ -205,6 +248,10 @@ func (m Model) initCurrentView() tea.Cmd {
 		if m.AppListView != nil {
 			return m.AppListView.Init()
 		}
+	case ViewAppDetail:
+		if m.AppDetailView != nil {
+			return m.AppDetailView.Init()
+		}
 	case ViewBrowse:
 		if m.BrowseView != nil {
 			return m.BrowseView.Init()
@@ -244,6 +291,10 @@ func (m *Model) updateCurrentView(msg tea.Msg) tea.Cmd {
 	case ViewAppList:
 		if m.AppListView != nil {
 			m.AppListView, cmd = m.AppListView.Update(msg)
+		}
+	case ViewAppDetail:
+		if m.AppDetailView != nil {
+			m.AppDetailView, cmd = m.AppDetailView.Update(msg)
 		}
 	case ViewBrowse:
 		if m.BrowseView != nil {
@@ -290,6 +341,10 @@ func (m *Model) View() string {
 	case ViewAppList:
 		if m.AppListView != nil {
 			content = m.AppListView.View()
+		}
+	case ViewAppDetail:
+		if m.AppDetailView != nil {
+			content = m.AppDetailView.View()
 		}
 	case ViewBrowse:
 		if m.BrowseView != nil {
@@ -343,4 +398,39 @@ func (m *Model) View() string {
 	}
 
 	return paddedContent
+}
+
+// deleteApp removes an app from the index and filesystem
+func (m *Model) deleteApp(key string) tea.Cmd {
+	return func() tea.Msg {
+		// Load index
+		idx, err := appindex.Load()
+		if err != nil {
+			return AppRemovedMsg{Key: key, Err: err}
+		}
+
+		// Check if app is in index
+		if !idx.Has(key) {
+			return AppRemovedMsg{Key: key, Err: nil} // Already removed
+		}
+
+		// Remove directory if it exists
+		parts := strings.SplitN(key, "/", 2)
+		if len(parts) == 2 {
+			appPath := config.AppPath(parts[0], parts[1])
+			if _, err := os.Stat(appPath); err == nil {
+				if err := os.RemoveAll(appPath); err != nil {
+					return AppRemovedMsg{Key: key, Err: err}
+				}
+			}
+		}
+
+		// Remove from index
+		idx.Remove(key)
+		if err := appindex.Save(idx); err != nil {
+			return AppRemovedMsg{Key: key, Err: err}
+		}
+
+		return AppRemovedMsg{Key: key, Err: nil}
+	}
 }

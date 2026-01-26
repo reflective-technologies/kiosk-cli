@@ -35,6 +35,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// Create view models (as pointers so SetSize works correctly)
 	homeView := views.NewHomeModel()
 	appListView := views.NewAppListModel()
+	appDetailView := views.NewAppDetailModel()
 	browseView := views.NewBrowseModel()
 	publishView := views.NewPublishModel()
 	helpView := views.NewHelpModel()
@@ -44,6 +45,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// Set views on the main model (pass as pointers)
 	m.SetHomeView(&homeView)
 	m.SetAppListView(&appListView)
+	m.SetAppDetailView(&appDetailView)
 	m.SetBrowseView(&browseView)
 	m.SetPublishView(&publishView)
 	m.SetHelpView(&helpView)
@@ -58,12 +60,24 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	)
 
 	// Run the TUI
-	_, err := p.Run()
+	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("error running TUI: %w", err)
 	}
 
+	// Check if we need to execute an app after TUI exits
+	if model, ok := finalModel.(*tui.Model); ok && model.ExecApp != "" {
+		// Execute the app using kiosk run
+		return executeApp(model.ExecApp)
+	}
+
 	return nil
+}
+
+// executeApp runs an app after TUI exits using the same logic as `kiosk run`
+func executeApp(appKey string) error {
+	// Normalize and run the installed app
+	return runInstalledApp(appKey, nil, false)
 }
 
 // RunTUIPostInstall runs the TUI in post-install mode for a specific app

@@ -463,8 +463,12 @@ func (m *PublishModel) publishableView() string {
 	b.WriteString(noStyle.Render("No"))
 	b.WriteString("\n\n")
 
-	// Help
-	b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("←/→ select • enter confirm • esc cancel"))
+	// Help - show "go back" if we have history, "cancel" if at start
+	if len(m.dirHistory) > 0 {
+		b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("←/→ select • enter confirm • esc go back"))
+	} else {
+		b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("←/→ select • enter confirm • esc cancel"))
+	}
 
 	return b.String()
 }
@@ -542,8 +546,12 @@ func (m *PublishModel) pickDirectoryView() string {
 
 	b.WriteString("\n\n")
 
-	// Help
-	b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("↑/↓ navigate • enter select • esc cancel"))
+	// Help - show "go back" if we have history, "cancel" if at start
+	if len(m.dirHistory) > 0 {
+		b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("↑/↓ navigate • enter select • esc go back"))
+	} else {
+		b.WriteString(styles.HelpStyle.Copy().MaxWidth(contentWidth).Render("↑/↓ navigate • enter select • esc cancel"))
+	}
 
 	return b.String()
 }

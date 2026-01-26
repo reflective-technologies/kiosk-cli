@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
@@ -20,6 +21,7 @@ type appItem struct {
 	name        string
 	author      string
 	description string
+	gitUrl      string
 	installed   bool
 	missing     bool
 }
@@ -135,12 +137,18 @@ func (m *AppListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if item, ok := m.list.SelectedItem().(appItem); ok {
 				m.selected = &item
 				return m, func() tea.Msg {
-					return tui.AppSelectedMsg{
-						Key: item.key,
-						Entry: &appindex.AppEntry{
+					return tui.ShowAppDetailMsg{
+						App: &api.App{
+							ID:          item.key,
 							Name:        item.name,
 							Description: item.description,
+							GitUrl:      item.gitUrl,
+							Creator: &api.Creator{
+								Username: item.author,
+							},
 						},
+						IsInstalled: true,
+						AppKey:      item.key,
 					}
 				}
 			}
@@ -185,6 +193,7 @@ func (m *AppListModel) updateListItems() {
 			name:        name,
 			author:      author,
 			description: entry.Description,
+			gitUrl:      entry.GitUrl,
 			installed:   true,
 			missing:     !exists[k],
 		}
