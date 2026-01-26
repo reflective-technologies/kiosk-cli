@@ -14,6 +14,13 @@ var rootCmd = &cobra.Command{
 	Version:       Version,
 	SilenceErrors: true, // We handle error display ourselves
 	SilenceUsage:  true, // Don't show usage on errors
+	Run: func(cmd *cobra.Command, args []string) {
+		// Launch interactive TUI when no subcommand is given
+		if err := runInteractiveTUI(); err != nil {
+			errors.PrintError(err)
+			os.Exit(1)
+		}
+	},
 }
 
 func Execute() {
