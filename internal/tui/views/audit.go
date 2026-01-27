@@ -2,6 +2,7 @@ package views
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -94,11 +95,15 @@ func (m *AuditModel) runAudit() tea.Msg {
 	cmd := kioskexec.ClaudeCmd("-p", kioskexec.AuditPrompt)
 	cmd.Dir = cwd
 
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		// Include stderr in error message if available
+		if stderr.Len() > 0 {
+			return tui.AuditCompleteMsg{Err: fmt.Errorf("%w: %s", err, stderr.String())}
+		}
 		return tui.AuditCompleteMsg{Err: err}
 	}
 
