@@ -127,7 +127,8 @@ func (m *PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.state == PostInstallStateReady {
+		switch m.state {
+		case PostInstallStateReady:
 			switch {
 			case key.Matches(msg, m.keys.Up):
 				if m.cursor > 0 {
@@ -144,7 +145,7 @@ func (m *PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Back):
 				return m, func() tea.Msg { return tui.GoBackMsg{} }
 			}
-		} else if m.state == PostInstallStateError {
+		case PostInstallStateError:
 			if key.Matches(msg, m.keys.Back) || key.Matches(msg, m.keys.Enter) {
 				return m, func() tea.Msg { return tui.GoBackMsg{} }
 			}
@@ -183,6 +184,10 @@ func (m *PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.ErrorMsg:
 		m.state = PostInstallStateError
 		m.error = msg.Err
+
+	case tui.SuccessMsg:
+		// Option executed successfully, return to ready state
+		m.state = PostInstallStateReady
 	}
 
 	return m, tea.Batch(cmds...)

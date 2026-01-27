@@ -111,14 +111,8 @@ func RunTUIPostInstall(appName, appKey, appPath string) error {
 	// Create the main TUI model
 	m := tui.New()
 
-	// Create post-install view
-	postInstallView := views.NewPostInstallModel(appName, appKey, appPath)
-
-	// Set the view
-	m.SetPostInstallView(&postInstallView)
-
-	// Navigate directly to post-install
-	// We need to send a message to navigate
+	// The post-install view is created in postInstallModel.Init() to avoid
+	// creating it twice (Init sets the view and navigates to it)
 	p := tea.NewProgram(
 		&postInstallModel{
 			model:   &m,
