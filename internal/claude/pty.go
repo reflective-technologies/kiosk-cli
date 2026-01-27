@@ -76,6 +76,11 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 	}
 	defer ptmx.Close()
 
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- cmd.Wait()
+	}()
+
 	restoreFn, err := makeRawIfPossible(ioCfg.Stdin)
 	if err == nil && restoreFn != nil {
 		defer restoreFn()
@@ -100,6 +105,10 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 
 	cr, err := cancelreader.NewReader(ioCfg.Stdin)
 	if err != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		<-waitErr
 		return err
 	}
 	defer cr.Cancel()
@@ -126,11 +135,6 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 				return
 			}
 		}
-	}()
-
-	waitErr := make(chan error, 1)
-	go func() {
-		waitErr <- cmd.Wait()
 	}()
 
 	for {

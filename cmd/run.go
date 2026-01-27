@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"github.com/reflective-technologies/kiosk-cli/internal/claude"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
+	"github.com/reflective-technologies/kiosk-cli/internal/giturl"
 	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
@@ -144,7 +146,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 
 	// Determine the key (org/repo) from git URL if we only had appId
 	if !strings.Contains(key, "/") {
-		key = extractOrgRepo(app.GitUrl)
+		key = giturl.ExtractOrgRepo(app.GitUrl)
 		if key == "" {
 			key = app.ID // Fallback to just appId
 		}
@@ -194,26 +196,6 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 	fmt.Printf("Installing %s...\n", app.Name)
 	fmt.Print(logo)
 	return execClaudeSession(appPath, prompt, safe, key, sessionCfg)
-}
-
-// extractOrgRepo extracts org/repo from a GitHub URL
-func extractOrgRepo(gitUrl string) string {
-	// Handle https://github.com/org/repo or https://github.com/org/repo.git
-	gitUrl = strings.TrimSuffix(gitUrl, ".git")
-
-	for _, prefix := range []string{
-		"https://github.com/",
-		"https://gitlab.com/",
-		"https://bitbucket.org/",
-		"git@github.com:",
-		"git@gitlab.com:",
-		"git@bitbucket.org:",
-	} {
-		if strings.HasPrefix(gitUrl, prefix) {
-			return strings.TrimPrefix(gitUrl, prefix)
-		}
-	}
-	return ""
 }
 
 type updateInfo struct {
@@ -425,10 +407,30 @@ func execClaudeSession(dir, prompt string, safe bool, appKey string, sessionCfg 
 	cmd := kioskexec.ClaudeCmd(args...)
 	cmd.Dir = dir
 
-	return claude.RunWithPTY(cmd, claude.SessionOptions{
+	runErr := claude.RunWithPTY(cmd, claude.SessionOptions{
 		IO:        sessionCfg.IO,
 		DetachKey: sessionCfg.DetachKey,
 	})
+	if runErr != nil && created && shouldClearSession(runErr) {
+		if clearErr := sessionCfg.Store.Delete(appKey); clearErr != nil {
+			return errors.Join(runErr, fmt.Errorf("failed to clear session: %w", clearErr))
+		}
+	}
+	return runErr
+}
+
+func shouldClearSession(err error) bool {
+	if errors.Is(err, claude.ErrDetached) {
+		return false
+	}
+
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+
+	var pathErr *os.PathError
+	return errors.As(err, &pathErr)
 }
 
 func init() {

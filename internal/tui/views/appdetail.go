@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/giturl"
 	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
@@ -294,7 +295,7 @@ func (m *AppDetailModel) checkHasSession(app *api.App, appKey string) bool {
 	}
 
 	if !strings.Contains(key, "/") && app != nil && app.GitUrl != "" {
-		key = extractOrgRepo(app.GitUrl)
+		key = giturl.ExtractOrgRepo(app.GitUrl)
 	}
 
 	if key == "" {
@@ -303,21 +304,4 @@ func (m *AppDetailModel) checkHasSession(app *api.App, appKey string) bool {
 
 	_, ok := store.Get(key)
 	return ok
-}
-
-func extractOrgRepo(gitUrl string) string {
-	gitUrl = strings.TrimSuffix(gitUrl, ".git")
-	for _, prefix := range []string{
-		"https://github.com/",
-		"https://gitlab.com/",
-		"https://bitbucket.org/",
-		"git@github.com:",
-		"git@gitlab.com:",
-		"git@bitbucket.org:",
-	} {
-		if strings.HasPrefix(gitUrl, prefix) {
-			return strings.TrimPrefix(gitUrl, prefix)
-		}
-	}
-	return ""
 }

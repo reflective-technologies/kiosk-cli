@@ -76,6 +76,19 @@ func (s *Store) Set(appKey, id string) error {
 	return s.saveLocked()
 }
 
+// Delete removes the session ID for an app key.
+func (s *Store) Delete(appKey string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.sessions[appKey]; !ok {
+		return nil
+	}
+
+	delete(s.sessions, appKey)
+	return s.saveLocked()
+}
+
 func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(config.KioskDir(), 0755); err != nil {
 		return fmt.Errorf("create kiosk dir: %w", err)
