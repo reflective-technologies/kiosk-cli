@@ -113,6 +113,7 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 			_ = cmd.Process.Kill()
 		}
 		<-waitErr
+		<-outputDone
 		return err
 	}
 	defer cr.Cancel()
@@ -155,6 +156,8 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 			if errors.Is(err, cancelreader.ErrCanceled) {
 				continue
 			}
+			// Wait for output to complete to avoid racing with terminal restoration.
+			<-outputDone
 			return err
 		}
 	}

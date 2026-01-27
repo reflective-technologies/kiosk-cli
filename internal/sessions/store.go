@@ -61,6 +61,7 @@ func (s *Store) GetOrCreate(appKey string) (string, bool, error) {
 
 	s.sessions[appKey] = id
 	if err := s.saveLocked(); err != nil {
+		delete(s.sessions, appKey)
 		return "", false, err
 	}
 
