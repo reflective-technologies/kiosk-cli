@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/reflective-technologies/kiosk-cli/internal/clistyle"
 	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
+	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -45,25 +48,29 @@ func execClaudeAudit(dir, prompt string) error {
 		done <- cmd.Run()
 	}()
 
+	// Styled spinner
+	spinnerStyle := lipgloss.NewStyle().Foreground(styles.Primary)
+	textStyle := lipgloss.NewStyle().Foreground(styles.Muted)
+
 	if term.IsTerminal(int(os.Stdout.Fd())) {
-		dots := []string{".  ", ".. ", "..."}
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		i := 0
-		ticker := time.NewTicker(400 * time.Millisecond)
+		ticker := time.NewTicker(80 * time.Millisecond)
 		defer ticker.Stop()
 
-		fmt.Print("Running security audit.")
+		fmt.Print(spinnerStyle.Render(frames[0]) + " " + textStyle.Render("Running security audit..."))
 	loop:
 		for {
 			select {
 			case err := <-done:
-				fmt.Print("\r\033[K")
+				fmt.Print("\r\033[K") // Clear line
 				if err != nil {
 					return err
 				}
 				break loop
 			case <-ticker.C:
-				i = (i + 1) % len(dots)
-				fmt.Printf("\rRunning security audit%s", dots[i])
+				i = (i + 1) % len(frames)
+				fmt.Print("\r" + spinnerStyle.Render(frames[i]) + " " + textStyle.Render("Running security audit..."))
 			}
 		}
 	} else {
@@ -74,7 +81,9 @@ func execClaudeAudit(dir, prompt string) error {
 
 	output := stdout.String()
 
-	fmt.Println("Audit results:")
+	// Print header
+	fmt.Println()
+	fmt.Println(clistyle.Title.Render("Security Audit Results"))
 	fmt.Println()
 
 	if term.IsTerminal(int(os.Stdout.Fd())) {

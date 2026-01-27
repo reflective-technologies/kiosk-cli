@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
+	"github.com/reflective-technologies/kiosk-cli/internal/clistyle"
 	"github.com/spf13/cobra"
 )
 
@@ -17,11 +18,7 @@ var whoamiCmd = &cobra.Command{
 			return err
 		}
 
-		if user.Name != "" {
-			fmt.Printf("%s (%s)\n", user.Name, user.Username)
-		} else {
-			fmt.Println(user.Username)
-		}
+		fmt.Print(clistyle.FormatWhoami(user.Name, user.Username, ""))
 
 		return nil
 	},
