@@ -65,6 +65,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		_, ok := sessionStore.Get(appKey)
 		return ok
 	})
+	m.SetSessionDelete(sessionStore.Delete)
 
 	// Create the program with alternate screen buffer
 	p := tea.NewProgram(

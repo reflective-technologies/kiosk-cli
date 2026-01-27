@@ -35,6 +35,9 @@ type Model struct {
 	// Optional session lookup for app detail rendering.
 	SessionLookup func(appKey string) bool
 
+	// Optional session delete for cleanup when apps are removed.
+	SessionDelete func(appKey string) error
+
 	// View models - these will be set by the cmd package
 	// to avoid circular imports
 	HomeView        tea.Model
@@ -111,6 +114,11 @@ func (m *Model) SetRunAppHandler(handler func(RunAppMsg) tea.Cmd) {
 // SetSessionLookup sets the session lookup callback for app detail rendering.
 func (m *Model) SetSessionLookup(fn func(appKey string) bool) {
 	m.SessionLookup = fn
+}
+
+// SetSessionDelete sets the session delete callback for cleanup when apps are removed.
+func (m *Model) SetSessionDelete(fn func(appKey string) error) {
+	m.SessionDelete = fn
 }
 
 // Init initializes the TUI application
@@ -453,6 +461,7 @@ func (m *Model) View() string {
 
 // deleteApp removes an app from the index and filesystem
 func (m *Model) deleteApp(key string) tea.Cmd {
+	sessionDelete := m.SessionDelete
 	return func() tea.Msg {
 		// Load index
 		idx, err := appindex.Load()
@@ -480,6 +489,11 @@ func (m *Model) deleteApp(key string) tea.Cmd {
 		idx.Remove(key)
 		if err := appindex.Save(idx); err != nil {
 			return AppRemovedMsg{Key: key, Err: err}
+		}
+
+		// Clean up associated session
+		if sessionDelete != nil {
+			_ = sessionDelete(key)
 		}
 
 		return AppRemovedMsg{Key: key, Err: nil}

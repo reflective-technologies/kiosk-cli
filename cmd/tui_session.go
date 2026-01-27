@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -71,7 +72,7 @@ func runAppSessionCmd(appArg string, store *sessions.Store) tea.Cmd {
 		if err == nil {
 			return tui.StatusMsg{Message: fmt.Sprintf("Session ended: %s", appArg)}
 		}
-		if err == claude.ErrDetached {
+		if errors.Is(err, claude.ErrDetached) {
 			return tui.SessionSuspendedMsg{
 				AppKey:  appArg,
 				Message: "Session saved. Resume anytime from My Apps.",

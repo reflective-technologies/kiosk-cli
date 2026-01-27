@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/views"
 	"github.com/spf13/cobra"
@@ -35,8 +36,11 @@ var lsCmd = &cobra.Command{
 			return nil
 		}
 
+		// Load sessions for cleanup during delete
+		store, _ := sessions.Load()
+
 		// Run interactive list
-		m := newLsModel(idx)
+		m := newLsModel(idx, store)
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
 		finalModel, err := p.Run()
@@ -65,6 +69,7 @@ const (
 type lsModel struct {
 	list         list.Model
 	index        *appindex.Index
+	sessions     *sessions.Store
 	currentView  lsView
 	selectedItem *lsItem
 	detailCursor int // 0 = Run, 1 = Delete
@@ -103,7 +108,7 @@ func (i lsItem) FilterValue() string {
 	return i.name + " " + i.author + " " + i.description
 }
 
-func newLsModel(idx *appindex.Index) *lsModel {
+func newLsModel(idx *appindex.Index, store *sessions.Store) *lsModel {
 	// Create delegate with same styling as TUI
 	delegate := views.NewAppItemDelegate()
 
@@ -127,6 +132,7 @@ func newLsModel(idx *appindex.Index) *lsModel {
 	m := &lsModel{
 		list:        l,
 		index:       idx,
+		sessions:    store,
 		currentView: lsViewList,
 	}
 
@@ -272,6 +278,11 @@ func (m *lsModel) deleteApp(key string) error {
 	m.index.Remove(key)
 	if err := appindex.Save(m.index); err != nil {
 		return fmt.Errorf("failed to save index: %w", err)
+	}
+
+	// Clean up associated session
+	if m.sessions != nil {
+		_ = m.sessions.Delete(key)
 	}
 
 	return nil
