@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 )
@@ -22,6 +23,7 @@ type AppDetailModel struct {
 	// App info
 	app         *api.App
 	isInstalled bool
+	hasSession  bool
 	appKey      string
 
 	// Button selection (0 = Run, 1 = Delete for installed; 0 = Install for browse)
@@ -36,7 +38,7 @@ func NewAppDetailModel() AppDetailModel {
 }
 
 // SetApp sets the app to display
-func (m *AppDetailModel) SetApp(app *api.App, isInstalled bool, appKey string) {
+func (m *AppDetailModel) SetApp(app *api.App, isInstalled bool, appKey string, hasSession bool) {
 	m.app = app
 	m.appKey = appKey
 	m.cursor = 0
@@ -46,6 +48,12 @@ func (m *AppDetailModel) SetApp(app *api.App, isInstalled bool, appKey string) {
 		m.isInstalled = true
 	} else {
 		m.isInstalled = m.checkIfInstalled(app)
+	}
+
+	if hasSession {
+		m.hasSession = true
+	} else {
+		m.hasSession = m.checkHasSession(app, appKey)
 	}
 }
 
@@ -120,7 +128,7 @@ func (m *AppDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tui.ShowAppDetailMsg:
-		m.SetApp(msg.App, msg.IsInstalled, msg.AppKey)
+		m.SetApp(msg.App, msg.IsInstalled, msg.AppKey, msg.HasSession)
 	}
 
 	return m, nil
@@ -252,7 +260,12 @@ func (m *AppDetailModel) renderButtons() string {
 			deleteStyle = deleteStyle.Foreground(styles.Muted)
 		}
 
-		return runStyle.Render("Run") + "  " + deleteStyle.Render("Delete")
+		label := "Run"
+		if m.hasSession {
+			label = "Resume"
+		}
+
+		return runStyle.Render(label) + "  " + deleteStyle.Render("Delete")
 	} else {
 		// Install button only
 		installStyle := lipgloss.NewStyle().Padding(0, 2)
@@ -267,4 +280,44 @@ func (m *AppDetailModel) renderButtons() string {
 
 		return installStyle.Render("Install")
 	}
+}
+
+func (m *AppDetailModel) checkHasSession(app *api.App, appKey string) bool {
+	store, err := sessions.Load()
+	if err != nil {
+		return false
+	}
+
+	key := strings.TrimSpace(appKey)
+	if key == "" && app != nil {
+		key = strings.TrimSpace(app.ID)
+	}
+
+	if !strings.Contains(key, "/") && app != nil && app.GitUrl != "" {
+		key = extractOrgRepo(app.GitUrl)
+	}
+
+	if key == "" {
+		return false
+	}
+
+	_, ok := store.Get(key)
+	return ok
+}
+
+func extractOrgRepo(gitUrl string) string {
+	gitUrl = strings.TrimSuffix(gitUrl, ".git")
+	for _, prefix := range []string{
+		"https://github.com/",
+		"https://gitlab.com/",
+		"https://bitbucket.org/",
+		"git@github.com:",
+		"git@gitlab.com:",
+		"git@bitbucket.org:",
+	} {
+		if strings.HasPrefix(gitUrl, prefix) {
+			return strings.TrimPrefix(gitUrl, prefix)
+		}
+	}
+	return ""
 }

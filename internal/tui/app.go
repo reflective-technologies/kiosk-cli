@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,6 +31,9 @@ type Model struct {
 
 	// Optional handler for executing apps while the TUI is running.
 	RunAppHandler func(RunAppMsg) tea.Cmd
+
+	// Optional session lookup for app detail rendering.
+	SessionLookup func(appKey string) bool
 
 	// View models - these will be set by the cmd package
 	// to avoid circular imports
@@ -104,6 +108,11 @@ func (m *Model) SetRunAppHandler(handler func(RunAppMsg) tea.Cmd) {
 	m.RunAppHandler = handler
 }
 
+// SetSessionLookup sets the session lookup callback for app detail rendering.
+func (m *Model) SetSessionLookup(fn func(appKey string) bool) {
+	m.SessionLookup = fn
+}
+
 // Init initializes the TUI application
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -160,6 +169,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Navigate to app detail and pass the app data
 		m.navigateTo(ViewAppDetail)
 		if m.AppDetailView != nil {
+			if msg.HasSession == false && msg.AppKey != "" && m.SessionLookup != nil {
+				msg.HasSession = m.SessionLookup(msg.AppKey)
+			}
 			// Update the detail view with the app info
 			m.AppDetailView, _ = m.AppDetailView.Update(msg)
 		}
@@ -192,9 +204,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StatusMsg:
 		m.status = msg.Message
+		if msg.Timeout > 0 {
+			cmds = append(cmds, tea.Tick(msg.Timeout, func(time.Time) tea.Msg {
+				return ClearStatusMsg{}
+			}))
+		}
 
 	case ClearStatusMsg:
 		m.status = ""
+
+	case SessionSuspendedMsg:
+		m.goToAppListRoot()
+		m.status = msg.Message
+		cmds = append(cmds, m.initCurrentView())
+		if msg.Timeout > 0 {
+			cmds = append(cmds, tea.Tick(msg.Timeout, func(time.Time) tea.Msg {
+				return ClearStatusMsg{}
+			}))
+		}
 	}
 
 	// Update the current view
@@ -255,6 +282,11 @@ func (m *Model) goBack() {
 		m.currentView = m.viewStack[len(m.viewStack)-1]
 		m.viewStack = m.viewStack[:len(m.viewStack)-1]
 	}
+}
+
+func (m *Model) goToAppListRoot() {
+	m.currentView = ViewAppList
+	m.viewStack = []ViewType{ViewHome}
 }
 
 func (m Model) initCurrentView() tea.Cmd {

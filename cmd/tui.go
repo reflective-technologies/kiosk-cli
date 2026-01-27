@@ -61,6 +61,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	m.SetRunAppHandler(func(msg tui.RunAppMsg) tea.Cmd {
 		return runAppSessionCmd(msg.AppKey, sessionStore)
 	})
+	m.SetSessionLookup(func(appKey string) bool {
+		_, ok := sessionStore.Get(appKey)
+		return ok
+	})
 
 	// Create the program with alternate screen buffer
 	p := tea.NewProgram(

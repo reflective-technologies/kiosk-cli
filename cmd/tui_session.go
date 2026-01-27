@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
@@ -71,7 +72,11 @@ func runAppSessionCmd(appArg string, store *sessions.Store) tea.Cmd {
 			return tui.StatusMsg{Message: fmt.Sprintf("Session ended: %s", appArg)}
 		}
 		if err == claude.ErrDetached {
-			return tui.StatusMsg{Message: fmt.Sprintf("Suspended: %s", appArg)}
+			return tui.SessionSuspendedMsg{
+				AppKey:  appArg,
+				Message: "Session saved. Resume anytime from My Apps.",
+				Timeout: 3 * time.Second,
+			}
 		}
 		return tui.ErrorMsg{Err: err}
 	})
