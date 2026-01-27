@@ -5,6 +5,8 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/views"
 	"github.com/spf13/cobra"
@@ -76,8 +78,32 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 // executeApp runs an app after TUI exits using the same logic as `kiosk run`
 func executeApp(appKey string) error {
-	// Normalize and run the installed app
-	return runInstalledApp(appKey, nil, false)
+	// Ensure working directory is initialized
+	if err := config.EnsureInitialized(); err != nil {
+		return fmt.Errorf("failed to initialize: %w", err)
+	}
+
+	// Load config and index
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	idx, err := appindex.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load app index: %w", err)
+	}
+
+	// Normalize key to org/repo format for index lookup
+	key := normalizeAppKey(appKey)
+
+	// Check if app is installed
+	if idx.Has(key) {
+		return runInstalledApp(key, nil, false)
+	}
+
+	// App not installed - fetch from API and install
+	return installAndRunApp(cfg, idx, appKey, key, nil, false)
 }
 
 // RunTUIPostInstall runs the TUI in post-install mode for a specific app

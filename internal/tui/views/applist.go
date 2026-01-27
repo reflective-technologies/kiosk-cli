@@ -58,27 +58,8 @@ type AppListModel struct {
 
 // NewAppListModel creates a new app list model
 func NewAppListModel() AppListModel {
-	// Create a custom delegate
-	delegate := list.NewDefaultDelegate()
-	// Keep text colors consistent - only use indicator for selection
-	delegate.Styles.NormalTitle = lipgloss.NewStyle().
-		Foreground(styles.Foreground).
-		Padding(0, 0, 0, 2) // indent to align with selected items
-	delegate.Styles.NormalDesc = lipgloss.NewStyle().
-		Foreground(styles.Muted).
-		Padding(0, 0, 0, 2)
-	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(styles.Primary).
-		Foreground(styles.Foreground).
-		Padding(0, 0, 0, 1)
-	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(styles.Primary).
-		Foreground(styles.Muted).
-		Padding(0, 0, 0, 1)
-	delegate.SetSpacing(0)
-	delegate.SetHeight(3) // Title + Description + blank line for spacing
+	// Create a custom delegate with multi-line description support
+	delegate := NewAppItemDelegate()
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
 	l.Title = "My Apps"
