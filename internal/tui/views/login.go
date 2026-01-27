@@ -86,6 +86,7 @@ func (m *LoginModel) requestDeviceCode() tea.Msg {
 		DeviceCode:      deviceCode.DeviceCode,
 		UserCode:        deviceCode.UserCode,
 		VerificationURI: deviceCode.VerificationURI,
+		Interval:        deviceCode.Interval,
 	}
 }
 
@@ -158,7 +159,10 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.deviceCode = msg.DeviceCode
 		m.userCode = msg.UserCode
 		m.verificationURI = msg.VerificationURI
-		m.interval = 5 // Default interval
+		m.interval = msg.Interval
+		if m.interval < 5 {
+			m.interval = 5 // Minimum interval per RFC 8628
+		}
 
 		// Try to open browser
 		openBrowser(m.verificationURI)

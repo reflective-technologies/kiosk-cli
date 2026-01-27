@@ -50,6 +50,7 @@ type LoginStartedMsg struct {
 	DeviceCode      string
 	UserCode        string
 	VerificationURI string
+	Interval        int // Polling interval in seconds (per RFC 8628)
 }
 
 // LoginCompleteMsg is sent when login completes
