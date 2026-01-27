@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,7 +10,10 @@ import (
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
+
+var logoutForce bool
 
 var logoutCmd = &cobra.Command{
 	Use:   "logout",
@@ -20,6 +24,7 @@ var logoutCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(logoutCmd)
+	logoutCmd.Flags().BoolVarP(&logoutForce, "force", "f", false, "Skip confirmation prompt")
 }
 
 func runLogout(cmd *cobra.Command, args []string) error {
@@ -32,6 +37,20 @@ func runLogout(cmd *cobra.Command, args []string) error {
 
 	// Get current user info for display
 	user, _ := auth.GetUser()
+
+	// Check if we should skip interactive confirmation
+	isInteractive := term.IsTerminal(int(os.Stdin.Fd()))
+
+	if logoutForce || !isInteractive {
+		// Non-interactive or forced: logout immediately
+		if err := auth.DeleteCredentials(); err != nil {
+			return fmt.Errorf("failed to logout: %w", err)
+		}
+		fmt.Println()
+		fmt.Println(styles.MutedStyle.Render("  Successfully logged out."))
+		fmt.Println()
+		return nil
+	}
 
 	// Run interactive confirmation
 	m := newLogoutModel(user)

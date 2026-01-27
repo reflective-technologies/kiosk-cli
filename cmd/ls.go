@@ -251,12 +251,13 @@ func (m *lsModel) updateDetailView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *lsModel) deleteApp(key string) {
-	// Remove from filesystem
+	// Remove from filesystem (consistent with rm command)
+	appPath := config.AppPath(key, "")
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) == 2 {
-		appPath := config.AppPath(parts[0], parts[1])
-		os.RemoveAll(appPath)
+		appPath = config.AppPath(parts[0], parts[1])
 	}
+	os.RemoveAll(appPath)
 
 	// Remove from index
 	m.index.Remove(key)

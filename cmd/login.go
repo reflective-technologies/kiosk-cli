@@ -37,7 +37,11 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	if auth.IsLoggedIn() {
 		user, _ := auth.GetUser()
 		fmt.Println()
-		fmt.Println("  You are already logged in as " + lipgloss.NewStyle().Bold(true).Render("@"+user.Username))
+		if user != nil && user.Username != "" {
+			fmt.Println("  You are already logged in as " + lipgloss.NewStyle().Bold(true).Render("@"+user.Username))
+		} else {
+			fmt.Println("  You are already logged in.")
+		}
 		fmt.Println()
 		fmt.Println(styles.MutedStyle.Render("  Run 'kiosk logout' first if you want to switch accounts."))
 		fmt.Println()
@@ -147,7 +151,6 @@ func newLoginModel(deviceCode *auth.DeviceCodeResponse, flow *auth.DeviceFlow, t
 	}
 }
 
-type pollTickMsg struct{}
 type pollResultMsg struct {
 	resp *auth.AuthResponse
 	err  error
