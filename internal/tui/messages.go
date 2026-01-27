@@ -107,6 +107,7 @@ type BrowseAppsPageLoadedMsg struct {
 	Apps       []api.App
 	NextCursor *string // cursor for next page, nil if no more pages
 	Err        error
+	Generation uint64 // generation ID to detect stale messages after view reset
 }
 
 // BrowseAppSelectedMsg is sent when a user selects an app to install

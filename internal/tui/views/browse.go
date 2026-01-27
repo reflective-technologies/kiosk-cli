@@ -61,8 +61,9 @@ type BrowseModel struct {
 	apps    []api.App
 
 	// Pagination state
-	nextCursor  *string // cursor for next page, nil if no more pages
-	loadingMore bool    // true when loading additional pages
+	nextCursor      *string // cursor for next page, nil if no more pages
+	loadingMore     bool    // true when loading additional pages
+	fetchGeneration uint64  // incremented on Init() to invalidate in-flight fetches
 }
 
 // NewBrowseModel creates a new browse model
@@ -102,6 +103,9 @@ func (m *BrowseModel) SetSize(width, height int) {
 
 // Init initializes the browse model
 func (m *BrowseModel) Init() tea.Cmd {
+	// Increment generation to invalidate any in-flight pagination fetches
+	m.fetchGeneration++
+
 	// Reset pagination state
 	m.loadingMore = false
 	m.nextCursor = nil
@@ -152,21 +156,23 @@ func (m *BrowseModel) fetchMoreApps() tea.Cmd {
 	}
 
 	cursor := *m.nextCursor
+	generation := m.fetchGeneration // capture current generation
 	return func() tea.Msg {
 		cfg, err := config.Load()
 		if err != nil {
-			return tui.BrowseAppsPageLoadedMsg{Err: err}
+			return tui.BrowseAppsPageLoadedMsg{Err: err, Generation: generation}
 		}
 
 		client := api.NewClient(cfg.APIUrl)
 		result, err := client.ListAppsPaginated(prefetch.DefaultPageSize, cursor)
 		if err != nil {
-			return tui.BrowseAppsPageLoadedMsg{Err: err}
+			return tui.BrowseAppsPageLoadedMsg{Err: err, Generation: generation}
 		}
 
 		return tui.BrowseAppsPageLoadedMsg{
 			Apps:       result.Apps,
 			NextCursor: result.NextCursor,
+			Generation: generation,
 		}
 	}
 }
@@ -220,6 +226,10 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateListItems()
 
 	case tui.BrowseAppsPageLoadedMsg:
+		// Ignore stale messages from previous sessions (e.g., user navigated away and back)
+		if msg.Generation != m.fetchGeneration {
+			return m, nil
+		}
 		m.loadingMore = false
 		if msg.Err != nil {
 			// Don't show error for pagination failures, just stop loading
