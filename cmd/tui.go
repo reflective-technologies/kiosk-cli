@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
@@ -137,7 +136,6 @@ type postInstallModel struct {
 	appName string
 	appKey  string
 	appPath string
-	started bool
 }
 
 func (m *postInstallModel) Init() tea.Cmd {
@@ -172,14 +170,4 @@ func (m *postInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *postInstallModel) View() string {
 	return m.model.View()
-}
-
-// Optional: Make the TUI the default when no arguments are provided
-func init() {
-	// Check if we should launch TUI by default
-	// This is optional and can be enabled if desired
-	if len(os.Args) == 1 {
-		// Uncomment to make TUI the default:
-		// os.Args = append(os.Args, "tui")
-	}
 }

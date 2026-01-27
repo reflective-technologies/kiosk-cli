@@ -41,8 +41,6 @@ type LoginModel struct {
 	interval        int
 	error           error
 	user            *auth.UserInfo
-	flow            *auth.DeviceFlow
-	pollTicker      *time.Ticker
 }
 
 // NewLoginModel creates a new login model
