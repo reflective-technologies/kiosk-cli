@@ -67,9 +67,9 @@ Note: Run 'kiosk init' first to create a KIOSK.md file if you don't have one.`,
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		// Check for KIOSK.md and warn if missing
+		// Require KIOSK.md to publish
 		if !kioskMdExists(cwd) {
-			fmt.Println("Warning: No KIOSK.md found. Consider running 'kiosk init' first to create one.")
+			return fmt.Errorf("no KIOSK.md found. Run 'kiosk init' first to create one")
 		}
 
 		client := api.NewClient(cfg.APIUrl)
