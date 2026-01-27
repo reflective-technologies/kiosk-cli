@@ -57,7 +57,17 @@ type CreateAppRequest struct {
 }
 
 // UpdateAppRequest represents the payload for updating an app
-type UpdateAppRequest CreateAppRequest
+// All fields are optional - only provided fields will be updated
+type UpdateAppRequest struct {
+	Name         string `json:"name,omitempty"`
+	Description  string `json:"description,omitempty"`
+	GitUrl       string `json:"gitUrl,omitempty"`
+	Branch       string `json:"branch,omitempty"`
+	Subdirectory string `json:"subdirectory,omitempty"`
+	Screenshot   string `json:"screenshot,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+	HowItWorks   string `json:"howItWorks,omitempty"`
+}
 
 // NewClient creates a new API client without authentication
 func NewClient(baseURL string) *Client {
