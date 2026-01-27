@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DefaultAPIUrl = "https://beta.kiosk.app"
+	DefaultAPIUrl = "https://kiosk.app"
 	EnvAPIUrl     = "KIOSK_API_URL"
 )
 
