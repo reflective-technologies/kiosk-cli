@@ -20,14 +20,27 @@ type Client struct {
 	token      string // GitHub access token for authenticated requests
 }
 
+// Creator represents the app creator from the API
+type Creator struct {
+	ID        string `json:"id"`
+	GithubID  int    `json:"githubId"`
+	Username  string `json:"username"`
+	Name      string `json:"name,omitempty"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+}
+
 // App represents an app from the API
 type App struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	GitUrl      string `json:"gitUrl"`
-	Branch      string `json:"branch,omitempty"`
-	KioskMd     string `json:"kioskMd,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	GitUrl       string   `json:"gitUrl"`
+	Branch       string   `json:"branch,omitempty"`
+	KioskMd      string   `json:"kioskMd,omitempty"`
+	Creator      *Creator `json:"creator,omitempty"`
+	InstallCount int      `json:"installCount,omitempty"`
+	CreatedAt    string   `json:"createdAt,omitempty"`
+	UpdatedAt    string   `json:"updatedAt,omitempty"`
 }
 
 // CreateAppRequest represents the payload for creating an app

@@ -9,6 +9,7 @@ import (
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +31,7 @@ Note: Run 'kiosk init' first to create a KIOSK.md file if you don't have one.`,
 				return fmt.Errorf("failed to get current directory: %w", err)
 			}
 
-			if err := execClaudeAudit(cwd, auditPrompt); err != nil {
+			if err := execClaudeAudit(cwd, kioskexec.AuditPrompt); err != nil {
 				return fmt.Errorf("audit failed: %w", err)
 			}
 

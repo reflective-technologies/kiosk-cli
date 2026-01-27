@@ -12,6 +12,7 @@ import (
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
 	"github.com/spf13/cobra"
 )
 
@@ -371,24 +372,6 @@ func gitRun(dir string, args ...string) error {
 	return nil
 }
 
-// claudeCmd builds an exec.Cmd for running claude with the given args.
-// It falls back to running through the user's shell if claude is not in PATH.
-func claudeCmd(args ...string) *exec.Cmd {
-	if _, err := exec.LookPath("claude"); err == nil {
-		return exec.Command("claude", args...)
-	}
-
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "sh"
-	}
-
-	// Build shell command with positional args
-	// Format: shell -i -c 'claude "$@"' claude arg1 arg2 ...
-	shellArgs := []string{"-i", "-c", `claude "$@"`, "claude"}
-	shellArgs = append(shellArgs, args...)
-	return exec.Command(shell, shellArgs...)
-}
 
 // execClaude runs claude in the given directory with the given prompt
 func execClaude(dir, prompt string, safe bool) error {
@@ -397,7 +380,7 @@ func execClaude(dir, prompt string, safe bool) error {
 		permissionMode = "default"
 	}
 
-	cmd := claudeCmd("--permission-mode", permissionMode, prompt)
+	cmd := kioskexec.ClaudeCmd("--permission-mode", permissionMode, prompt)
 	return runCommand(cmd, dir)
 }
 
