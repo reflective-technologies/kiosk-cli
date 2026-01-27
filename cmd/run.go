@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
+	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
 )
 
@@ -100,6 +102,7 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 	if err != nil {
 		return err
 	}
+
 	if updateInfo != nil && updateInfo.updated {
 		prompt = buildUpdatePrompt(updateInfo)
 	}
@@ -114,6 +117,9 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 
 	fmt.Printf("Running %s...\n", key)
 	fmt.Print(logo)
+	fmt.Print(lipgloss.NewStyle().Foreground(styles.Primary).Render(`  ┌───┐
+ ┌┴───┴┐`))
+
 	return execClaude(appPath, prompt, safe)
 }
 
@@ -371,7 +377,6 @@ func gitRun(dir string, args ...string) error {
 	}
 	return nil
 }
-
 
 // execClaude runs claude in the given directory with the given prompt
 func execClaude(dir, prompt string, safe bool) error {
