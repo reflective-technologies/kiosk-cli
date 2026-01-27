@@ -103,27 +103,31 @@ func (m *BrowseModel) SetSize(width, height int) {
 // Init initializes the browse model
 func (m *BrowseModel) Init() tea.Cmd {
 	// Reset pagination state
-	m.loading = true
 	m.loadingMore = false
 	m.nextCursor = nil
-	m.apps = nil
 
 	// Check if we have prefetched data available
 	cache := prefetch.GetCache()
 	result := cache.GetBrowseApps()
 
 	if result.Loaded {
-		// Data was prefetched - use it immediately
-		return func() tea.Msg {
-			return tui.BrowseAppsLoadedMsg{
-				Apps:       result.Apps,
-				NextCursor: result.NextCursor,
-				Err:        result.Err,
-			}
+		// Data was prefetched - apply it immediately (no loading state)
+		m.loading = false
+		if result.Err != nil {
+			m.err = result.Err
+			m.apps = nil
+		} else {
+			m.err = nil
+			m.apps = result.Apps
+			m.nextCursor = result.NextCursor
+			m.updateListItems()
 		}
+		return nil
 	}
 
 	// Data not ready yet - show spinner and wait for prefetch to complete
+	m.loading = true
+	m.apps = nil
 	return tea.Batch(
 		m.spinner.Tick,
 		m.waitForPrefetch,
