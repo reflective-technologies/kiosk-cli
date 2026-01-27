@@ -147,7 +147,7 @@ func (m *BrowseModel) waitForPrefetch() tea.Msg {
 }
 
 func (m *BrowseModel) fetchMoreApps() tea.Cmd {
-	if m.nextCursor == nil || m.loadingMore {
+	if m.nextCursor == nil {
 		return nil
 	}
 
