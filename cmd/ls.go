@@ -256,13 +256,16 @@ func (m *lsModel) updateDetailView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *lsModel) deleteApp(key string) error {
-	// Remove from filesystem
+	// Validate key format
 	parts := strings.SplitN(key, "/", 2)
-	if len(parts) == 2 {
-		appPath := config.AppPath(parts[0], parts[1])
-		if err := os.RemoveAll(appPath); err != nil {
-			return fmt.Errorf("failed to remove app files: %w", err)
-		}
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid app key: %s", key)
+	}
+
+	// Remove from filesystem
+	appPath := config.AppPath(parts[0], parts[1])
+	if err := os.RemoveAll(appPath); err != nil {
+		return fmt.Errorf("failed to remove app files: %w", err)
 	}
 
 	// Remove from index
