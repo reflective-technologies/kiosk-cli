@@ -141,6 +141,7 @@ func (m *AppListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
+		m.err = nil
 		m.index = msg.Index
 		m.updateListItems()
 	}

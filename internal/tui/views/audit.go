@@ -74,6 +74,11 @@ func (m *AuditModel) SetSize(width, height int) {
 
 // Init initializes the audit model
 func (m *AuditModel) Init() tea.Cmd {
+	// Reset state for re-entry (view models are reused across navigations)
+	m.state = AuditStateInitial
+	m.result = ""
+	m.error = nil
+
 	return tea.Batch(
 		m.spinner.Tick,
 		m.runAudit,

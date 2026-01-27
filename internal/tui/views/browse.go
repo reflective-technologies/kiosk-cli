@@ -161,6 +161,7 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
+		m.err = nil
 		m.apps = msg.Apps
 		m.updateListItems()
 	}
