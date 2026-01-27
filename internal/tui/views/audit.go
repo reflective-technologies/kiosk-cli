@@ -3,7 +3,7 @@ package views
 import (
 	"bytes"
 	"os"
-	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -12,40 +12,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 )
-
-const auditPrompt = `You are auditing this application for security issues before it is published to a public repository.
-
-Perform the following checks:
-
-1. **Current codebase scan**: Search all files for:
-   - API keys, secrets, tokens, or credentials (look for patterns like API_KEY, SECRET, TOKEN, PASSWORD, etc.)
-   - Personal information (emails, phone numbers, addresses)
-   - Hardcoded URLs with embedded credentials
-   - Private keys or certificates
-   - Environment files (.env) that shouldn't be committed
-
-2. **Git history scan**: Check the git history for any previously committed secrets that may have been removed:
-   - Run: git log -p --all -S 'API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY' --pickaxe-regex
-   - Also check: git log -p --all -- '*.env' '.env*'
-   - Look for any commits that added then removed sensitive data
-
-3. **Configuration review**: Check for:
-   - Proper .gitignore entries for sensitive files
-   - Any configuration files that might contain secrets
-
-Report your findings clearly, listing:
-- Any issues found with file paths and line numbers
-- Severity (critical/warning/info)
-- Recommended remediation steps
-
-If no issues are found, confirm the repository appears safe for publication.
-
-IMPORTANT: 
-- Output ONLY the markdown report. No preamble, no explanations, no follow-up questions—just the report itself.
-- Format your response as valid markdown with proper headers, lists, and code blocks where appropriate.`
 
 // AuditState represents the current state of the audit
 type AuditState int
@@ -116,7 +86,7 @@ func (m *AuditModel) runAudit() tea.Msg {
 		return tui.AuditCompleteMsg{Err: err}
 	}
 
-	cmd := claudeCmd("-p", auditPrompt)
+	cmd := kioskexec.ClaudeCmd("-p", kioskexec.AuditPrompt)
 	cmd.Dir = cwd
 
 	var stdout bytes.Buffer
@@ -128,22 +98,6 @@ func (m *AuditModel) runAudit() tea.Msg {
 	}
 
 	return tui.AuditCompleteMsg{Result: stdout.String()}
-}
-
-// claudeCmd builds an exec.Cmd for running claude with the given args.
-func claudeCmd(args ...string) *exec.Cmd {
-	if _, err := exec.LookPath("claude"); err == nil {
-		return exec.Command("claude", args...)
-	}
-
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "sh"
-	}
-
-	shellArgs := []string{"-i", "-c", `claude "$@"`, "claude"}
-	shellArgs = append(shellArgs, args...)
-	return exec.Command(shell, shellArgs...)
 }
 
 // Update handles messages for the audit view
@@ -247,7 +201,7 @@ func (m *AuditModel) View() string {
 	helpStyle := styles.HelpStyle
 	if m.state == AuditStateComplete {
 		scrollPercent := int(m.viewport.ScrollPercent() * 100)
-		b.WriteString(helpStyle.Render("↑/↓ scroll • esc back • " + string(rune('0'+scrollPercent/10)) + string(rune('0'+scrollPercent%10)) + "%"))
+		b.WriteString(helpStyle.Render("↑/↓ scroll • esc back • " + strconv.Itoa(scrollPercent) + "%"))
 	} else {
 		b.WriteString(helpStyle.Render("Press esc to cancel"))
 	}
