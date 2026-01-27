@@ -4,45 +4,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// IsDarkMode indicates whether the terminal has a dark background
-var IsDarkMode = lipgloss.HasDarkBackground()
-
-// Colors - these are set based on terminal background
+// Colors - using colors that work well on both light and dark backgrounds
+// We avoid very light colors (like white) and very dark colors (like black)
+// Instead using mid-range colors that have good contrast on both
 var (
-	Primary    lipgloss.Color
-	Secondary  lipgloss.Color
-	Success    lipgloss.Color
-	Warning    lipgloss.Color
-	Error      lipgloss.Color
-	Muted      lipgloss.Color
-	Background lipgloss.Color
-	Foreground lipgloss.Color
+	Primary    = lipgloss.Color("#3B82F6") // Blue - visible on both
+	Secondary  = lipgloss.Color("#0EA5E9") // Sky blue
+	Success    = lipgloss.Color("#22C55E") // Green
+	Warning    = lipgloss.Color("#F59E0B") // Amber
+	Error      = lipgloss.Color("#EF4444") // Red
+	Muted      = lipgloss.Color("#71717A") // Zinc gray - works on both
+	Background = lipgloss.Color("")        // Use terminal default
+	Foreground = lipgloss.Color("")        // Use terminal default (empty = inherit)
 )
 
 func init() {
-	if IsDarkMode {
-		// Dark mode colors
-		Primary = lipgloss.Color("#3B5BF7")    // Blue
-		Secondary = lipgloss.Color("#35C1FF")  // Light blue
-		Success = lipgloss.Color("#10B981")    // Green
-		Warning = lipgloss.Color("#F59E0B")    // Amber
-		Error = lipgloss.Color("#EF4444")      // Red
-		Muted = lipgloss.Color("#9CA3AF")      // Gray (lighter for dark bg)
-		Background = lipgloss.Color("#1F2937") // Dark gray
-		Foreground = lipgloss.Color("#F9FAFB") // Light gray
-	} else {
-		// Light mode colors
-		Primary = lipgloss.Color("#2563EB")    // Darker blue for light bg
-		Secondary = lipgloss.Color("#0284C7")  // Darker light blue
-		Success = lipgloss.Color("#059669")    // Darker green
-		Warning = lipgloss.Color("#D97706")    // Darker amber
-		Error = lipgloss.Color("#DC2626")      // Darker red
-		Muted = lipgloss.Color("#6B7280")      // Gray
-		Background = lipgloss.Color("#F3F4F6") // Light gray
-		Foreground = lipgloss.Color("#111827") // Dark gray (almost black)
-	}
-
-	// Re-initialize styles with the correct colors
 	initStyles()
 }
 
@@ -128,14 +104,9 @@ func initStyles() {
 		Foreground(Foreground).
 		Padding(0, 1)
 
-	// Code/monospace text - use appropriate background for mode
-	codeBg := lipgloss.Color("#374151") // dark mode
-	if !IsDarkMode {
-		codeBg = lipgloss.Color("#E5E7EB") // light mode
-	}
+	// Code/monospace text
 	Code = lipgloss.NewStyle().
 		Foreground(Secondary).
-		Background(codeBg).
 		Padding(0, 1)
 
 	// App name in list
