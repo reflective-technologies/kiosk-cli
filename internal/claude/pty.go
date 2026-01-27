@@ -89,18 +89,22 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 	resizeCh := make(chan os.Signal, 1)
 	defer close(resizeCh)
 	if tty, ok := ioCfg.Stdout.(*os.File); ok {
-		_ = pty.InheritSize(ptmx, tty)
+		// InheritSize copies size FROM first arg TO second arg.
+		// We want to copy the real terminal's size to the PTY.
+		_ = pty.InheritSize(tty, ptmx)
 		signal.Notify(resizeCh, syscall.SIGWINCH)
 		go func() {
 			for range resizeCh {
-				_ = pty.InheritSize(ptmx, tty)
+				_ = pty.InheritSize(tty, ptmx)
 			}
 		}()
 	}
 	defer signal.Stop(resizeCh)
 
+	outputDone := make(chan struct{})
 	go func() {
 		_, _ = io.Copy(ioCfg.Stdout, ptmx)
+		close(outputDone)
 	}()
 
 	cr, err := cancelreader.NewReader(ioCfg.Stdin)
@@ -140,10 +144,13 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 	for {
 		select {
 		case err := <-waitErr:
+			// Wait for output copy to complete before returning to avoid
+			// racing with Bubble Tea's terminal restoration.
+			<-outputDone
 			return err
 		case err := <-inputErr:
 			if errors.Is(err, ErrDetached) {
-				return detach(cmd, waitErr, interruptDelay, interruptTimeout)
+				return detach(cmd, waitErr, outputDone, interruptDelay, interruptTimeout)
 			}
 			if errors.Is(err, cancelreader.ErrCanceled) {
 				continue
@@ -153,17 +160,19 @@ func RunWithPTY(cmd *exec.Cmd, opts SessionOptions) error {
 	}
 }
 
-func detach(cmd *exec.Cmd, waitErr <-chan error, delay, timeout time.Duration) error {
+func detach(cmd *exec.Cmd, waitErr <-chan error, outputDone <-chan struct{}, delay, timeout time.Duration) error {
 	sendInterrupts(cmd.Process, delay)
 
 	select {
 	case <-waitErr:
+		<-outputDone
 		return ErrDetached
 	case <-time.After(timeout):
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 		<-waitErr
+		<-outputDone
 		return ErrDetached
 	}
 }
