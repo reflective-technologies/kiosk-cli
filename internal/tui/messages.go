@@ -131,6 +131,13 @@ type ExecAppMsg struct {
 	AppKey string
 }
 
+// ExecPostInstallOptionMsg signals the TUI to quit and execute a post-install option
+type ExecPostInstallOptionMsg struct {
+	AppPath string
+	Command string // One of: "claude", "edit", "dev", "build", "test"
+	Prompt  string // Prompt to pass to Claude (if applicable)
+}
+
 // Generic messages
 
 // ErrorMsg represents an error that occurred

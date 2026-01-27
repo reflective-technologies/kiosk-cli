@@ -100,7 +100,7 @@ func NewPostInstallModel(appName, appKey, appPath string) PostInstallModel {
 
 	return PostInstallModel{
 		keys:     tui.DefaultKeyMap(),
-		state:    PostInstallStateCloning,
+		state:    PostInstallStateReady,
 		spinner:  s,
 		progress: p,
 		appName:  appName,
@@ -194,8 +194,6 @@ func (m *PostInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *PostInstallModel) executeOption(opt PostInstallOption) tea.Cmd {
-	// This would normally execute the command
-	// For now, we just return a success message
 	return func() tea.Msg {
 		return tui.SuccessMsg{Message: fmt.Sprintf("Executing: %s", opt.Command)}
 	}
@@ -216,9 +214,16 @@ func (m *PostInstallModel) SetCloneProgress(percent int, message string) {
 func (m *PostInstallModel) View() string {
 	var b strings.Builder
 
-	// App name header
+	// App name header - show appropriate title based on state
 	titleStyle := styles.Title.Copy().MarginBottom(1)
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Installing %s", m.appName)))
+	switch m.state {
+	case PostInstallStateCloning, PostInstallStateInstalling:
+		b.WriteString(titleStyle.Render(fmt.Sprintf("Installing %s", m.appName)))
+	case PostInstallStateReady, PostInstallStateRunning:
+		b.WriteString(titleStyle.Render(m.appName))
+	case PostInstallStateError:
+		b.WriteString(titleStyle.Render(fmt.Sprintf("Installation Failed: %s", m.appName)))
+	}
 	b.WriteString("\n\n")
 
 	switch m.state {
