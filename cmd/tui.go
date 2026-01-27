@@ -105,31 +105,6 @@ func executeApp(appKey string) error {
 	return installAndRunApp(cfg, idx, appKey, key, nil, false)
 }
 
-// RunTUIPostInstall runs the TUI in post-install mode for a specific app
-func RunTUIPostInstall(appName, appKey, appPath string) error {
-	// Create the main TUI model
-	m := tui.New()
-
-	// The post-install view is created in postInstallModel.Init() to avoid
-	// creating it twice (Init sets the view and navigates to it)
-	p := tea.NewProgram(
-		&postInstallModel{
-			model:   &m,
-			appName: appName,
-			appKey:  appKey,
-			appPath: appPath,
-		},
-		tea.WithAltScreen(),
-	)
-
-	_, err := p.Run()
-	if err != nil {
-		return fmt.Errorf("error running post-install TUI: %w", err)
-	}
-
-	return nil
-}
-
 // postInstallModel wraps the TUI model to start in post-install mode
 type postInstallModel struct {
 	model   *tui.Model
