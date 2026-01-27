@@ -295,7 +295,9 @@ func (m *AppDetailModel) checkHasSession(app *api.App, appKey string) bool {
 	}
 
 	if !strings.Contains(key, "/") && app != nil && app.GitUrl != "" {
-		key = giturl.ExtractOrgRepo(app.GitUrl)
+		if orgRepo := giturl.ExtractOrgRepo(app.GitUrl); orgRepo != "" {
+			key = orgRepo
+		}
 	}
 
 	if key == "" {
