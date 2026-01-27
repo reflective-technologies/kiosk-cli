@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	"github.com/reflective-technologies/kiosk-cli/internal/prefetch"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 )
@@ -58,6 +59,11 @@ type BrowseModel struct {
 	loading bool
 	err     error
 	apps    []api.App
+
+	// Pagination state
+	nextCursor      *string // cursor for next page, nil if no more pages
+	loadingMore     bool    // true when loading additional pages
+	fetchGeneration uint64  // incremented on Init() to invalidate in-flight fetches
 }
 
 // NewBrowseModel creates a new browse model
@@ -97,25 +103,80 @@ func (m *BrowseModel) SetSize(width, height int) {
 
 // Init initializes the browse model
 func (m *BrowseModel) Init() tea.Cmd {
+	// Increment generation to invalidate any in-flight pagination fetches
+	m.fetchGeneration++
+
+	// Reset pagination state
+	m.loadingMore = false
+	m.nextCursor = nil
+
+	// Check if we have prefetched data available
+	cache := prefetch.GetCache()
+	result := cache.GetBrowseApps()
+
+	if result.Loaded && result.Err == nil {
+		// Data was prefetched successfully - apply it immediately (no loading state)
+		m.loading = false
+		m.err = nil
+		m.apps = result.Apps
+		m.nextCursor = result.NextCursor
+		m.updateListItems()
+		return nil
+	}
+
+	// If there was a cached error, reset and start a fresh prefetch
+	if result.Loaded && result.Err != nil {
+		cache.ResetBrowseApps()
+		cache.StartBrowseAppsPrefetch()
+	}
+
+	// Data not ready yet (or retrying after error) - show spinner and wait for prefetch to complete
+	m.loading = true
+	m.apps = nil
+	m.err = nil
 	return tea.Batch(
 		m.spinner.Tick,
-		m.fetchApps,
+		m.waitForPrefetch,
 	)
 }
 
-func (m *BrowseModel) fetchApps() tea.Msg {
-	cfg, err := config.Load()
-	if err != nil {
-		return tui.BrowseAppsLoadedMsg{Err: err}
+// waitForPrefetch waits for the prefetch to complete and returns the result
+func (m *BrowseModel) waitForPrefetch() tea.Msg {
+	cache := prefetch.GetCache()
+	result := cache.WaitForBrowseApps()
+
+	return tui.BrowseAppsLoadedMsg{
+		Apps:       result.Apps,
+		NextCursor: result.NextCursor,
+		Err:        result.Err,
+	}
+}
+
+func (m *BrowseModel) fetchMoreApps() tea.Cmd {
+	if m.nextCursor == nil {
+		return nil
 	}
 
-	client := api.NewClient(cfg.APIUrl)
-	apps, err := client.ListApps()
-	if err != nil {
-		return tui.BrowseAppsLoadedMsg{Err: err}
-	}
+	cursor := *m.nextCursor
+	generation := m.fetchGeneration // capture current generation
+	return func() tea.Msg {
+		cfg, err := config.Load()
+		if err != nil {
+			return tui.BrowseAppsPageLoadedMsg{Err: err, Generation: generation}
+		}
 
-	return tui.BrowseAppsLoadedMsg{Apps: apps}
+		client := api.NewClient(cfg.APIUrl)
+		result, err := client.ListAppsPaginated(prefetch.DefaultPageSize, cursor)
+		if err != nil {
+			return tui.BrowseAppsPageLoadedMsg{Err: err, Generation: generation}
+		}
+
+		return tui.BrowseAppsPageLoadedMsg{
+			Apps:       result.Apps,
+			NextCursor: result.NextCursor,
+			Generation: generation,
+		}
+	}
 }
 
 // Update handles messages for the browse view
@@ -149,7 +210,7 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case spinner.TickMsg:
-		if m.loading {
+		if m.loading || m.loadingMore {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
@@ -163,6 +224,22 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.err = nil
 		m.apps = msg.Apps
+		m.nextCursor = msg.NextCursor
+		m.updateListItems()
+
+	case tui.BrowseAppsPageLoadedMsg:
+		// Ignore stale messages from previous sessions (e.g., user navigated away and back)
+		if msg.Generation != m.fetchGeneration {
+			return m, nil
+		}
+		m.loadingMore = false
+		if msg.Err != nil {
+			// Don't show error for pagination failures, just stop loading
+			return m, nil
+		}
+		// Append new apps to existing list
+		m.apps = append(m.apps, msg.Apps...)
+		m.nextCursor = msg.NextCursor
 		m.updateListItems()
 	}
 
@@ -171,9 +248,39 @@ func (m *BrowseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		cmds = append(cmds, cmd)
+
+		// Check if we should load more apps (when near the bottom of the list)
+		if m.shouldLoadMore() {
+			m.loadingMore = true
+			cmds = append(cmds, m.spinner.Tick, m.fetchMoreApps())
+		}
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// shouldLoadMore returns true if we should fetch the next page of apps
+func (m *BrowseModel) shouldLoadMore() bool {
+	// Don't load more if already loading or no more pages
+	if m.loadingMore || m.nextCursor == nil {
+		return false
+	}
+
+	// Don't load more when filtering
+	if m.list.FilterState() == list.Filtering {
+		return false
+	}
+
+	// Load more when user is within 3 items of the bottom
+	totalItems := len(m.list.Items())
+	if totalItems == 0 {
+		return false
+	}
+
+	currentIndex := m.list.Index()
+	threshold := 3
+
+	return currentIndex >= totalItems-threshold
 }
 
 func (m *BrowseModel) updateListItems() {
@@ -198,7 +305,12 @@ func (m *BrowseModel) View() string {
 		return m.emptyView()
 	}
 
-	return m.list.View()
+	// Show list with optional loading indicator for pagination
+	view := m.list.View()
+	if m.loadingMore {
+		view += "\n" + m.spinner.View() + " " + styles.MutedStyle.Render("Loading more...")
+	}
+	return view
 }
 
 func (m *BrowseModel) loadingView() string {
