@@ -71,6 +71,7 @@ type lsModel struct {
 	runApp       string
 	width        int
 	height       int
+	err          error
 }
 
 // lsItem represents an app in the list
@@ -240,7 +241,11 @@ func (m *lsModel) updateDetailView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			// Delete
-			m.deleteApp(m.selectedItem.key)
+			if err := m.deleteApp(m.selectedItem.key); err != nil {
+				m.err = err
+				return m, nil
+			}
+			m.err = nil
 			m.currentView = lsViewList
 			m.selectedItem = nil
 			m.loadItems()
@@ -250,18 +255,23 @@ func (m *lsModel) updateDetailView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *lsModel) deleteApp(key string) {
-	// Remove from filesystem (consistent with rm command)
-	appPath := config.AppPath(key, "")
+func (m *lsModel) deleteApp(key string) error {
+	// Remove from filesystem
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) == 2 {
-		appPath = config.AppPath(parts[0], parts[1])
+		appPath := config.AppPath(parts[0], parts[1])
+		if err := os.RemoveAll(appPath); err != nil {
+			return fmt.Errorf("failed to remove app files: %w", err)
+		}
 	}
-	os.RemoveAll(appPath)
 
 	// Remove from index
 	m.index.Remove(key)
-	appindex.Save(m.index)
+	if err := appindex.Save(m.index); err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
+	}
+
+	return nil
 }
 
 func (m *lsModel) View() string {
@@ -302,6 +312,14 @@ func (m *lsModel) viewDetail() string {
 		descStyle := lipgloss.NewStyle().Width(m.width - 4)
 		b.WriteString("  ")
 		b.WriteString(descStyle.Render(item.description))
+		b.WriteString("\n\n")
+	}
+
+	// Error message if any
+	if m.err != nil {
+		errorStyle := lipgloss.NewStyle().Foreground(styles.Error)
+		b.WriteString("  ")
+		b.WriteString(errorStyle.Render("Error: " + m.err.Error()))
 		b.WriteString("\n\n")
 	}
 

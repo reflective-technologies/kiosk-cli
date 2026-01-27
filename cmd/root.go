@@ -70,11 +70,17 @@ func styledHelp(cmd *cobra.Command, args []string) {
 		})
 	})
 
-	// Add standard flags
+	// Add help flag (always present)
 	flags = append(flags,
-		clistyle.FlagInfo{Short: "h", Long: "help", Usage: "help for kiosk"},
-		clistyle.FlagInfo{Short: "v", Long: "version", Usage: "version for kiosk"},
+		clistyle.FlagInfo{Short: "h", Long: "help", Usage: "help for " + cmd.Name()},
 	)
+
+	// Add version flag only for root command (the only one with Version set)
+	if cmd.Version != "" {
+		flags = append(flags,
+			clistyle.FlagInfo{Short: "", Long: "version", Usage: "version for " + cmd.Name()},
+		)
+	}
 
 	// Render styled help
 	help := clistyle.FormatHelp(cmd.Use, cmd.Short, cmd.Long, commands, flags)
