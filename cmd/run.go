@@ -12,8 +12,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/claude"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
+	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
 )
@@ -64,11 +66,11 @@ The app can be specified as:
 
 		// Check if app is installed
 		if idx.Has(key) {
-			return runInstalledApp(key, sandboxValues, safeFlag)
+			return runInstalledApp(key, sandboxValues, safeFlag, nil)
 		}
 
 		// App not installed - fetch from API and install
-		return installAndRunApp(cfg, idx, appArg, key, sandboxValues, safeFlag)
+		return installAndRunApp(cfg, idx, appArg, key, sandboxValues, safeFlag, nil)
 	},
 }
 
@@ -84,7 +86,7 @@ func normalizeAppKey(input string) string {
 }
 
 // runInstalledApp runs an already-installed app
-func runInstalledApp(key string, sandboxValues []string, safe bool) error {
+func runInstalledApp(key string, sandboxValues []string, safe bool, sessionCfg *claudeSessionConfig) error {
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid app key: %s", key)
@@ -120,11 +122,11 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 	fmt.Print(lipgloss.NewStyle().Foreground(styles.Primary).Render(`  ┌───┐
  ┌┴───┴┐`))
 
-	return execClaude(appPath, prompt, safe)
+	return execClaudeSession(appPath, prompt, safe, key, sessionCfg)
 }
 
 // installAndRunApp fetches an app from the API and installs it
-func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string, safe bool) error {
+func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string, safe bool, sessionCfg *claudeSessionConfig) error {
 	client := api.NewClient(cfg.APIUrl)
 
 	// Fetch app metadata
@@ -191,7 +193,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 
 	fmt.Printf("Installing %s...\n", app.Name)
 	fmt.Print(logo)
-	return execClaude(appPath, prompt, safe)
+	return execClaudeSession(appPath, prompt, safe, key, sessionCfg)
 }
 
 // extractOrgRepo extracts org/repo from a GitHub URL
@@ -378,6 +380,12 @@ func gitRun(dir string, args ...string) error {
 	return nil
 }
 
+type claudeSessionConfig struct {
+	Store     *sessions.Store
+	DetachKey byte
+	IO        claude.SessionIO
+}
+
 // execClaude runs claude in the given directory with the given prompt
 func execClaude(dir, prompt string, safe bool) error {
 	permissionMode := "bypassPermissions"
@@ -387,6 +395,40 @@ func execClaude(dir, prompt string, safe bool) error {
 
 	cmd := kioskexec.ClaudeCmd("--permission-mode", permissionMode, prompt)
 	return runCommand(cmd, dir)
+}
+
+func execClaudeSession(dir, prompt string, safe bool, appKey string, sessionCfg *claudeSessionConfig) error {
+	if sessionCfg == nil || sessionCfg.Store == nil {
+		return execClaude(dir, prompt, safe)
+	}
+
+	permissionMode := "bypassPermissions"
+	if safe {
+		permissionMode = "default"
+	}
+
+	sessionID, created, err := sessionCfg.Store.GetOrCreate(appKey)
+	if err != nil {
+		return err
+	}
+
+	args := []string{"--permission-mode", permissionMode}
+	if created {
+		args = append(args, "--session-id", sessionID)
+	} else {
+		args = append(args, "--resume", sessionID)
+	}
+	if prompt != "" {
+		args = append(args, prompt)
+	}
+
+	cmd := kioskexec.ClaudeCmd(args...)
+	cmd.Dir = dir
+
+	return claude.RunWithPTY(cmd, claude.SessionOptions{
+		IO:        sessionCfg.IO,
+		DetachKey: sessionCfg.DetachKey,
+	})
 }
 
 func init() {

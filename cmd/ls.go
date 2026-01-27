@@ -46,7 +46,7 @@ var lsCmd = &cobra.Command{
 
 		// Check if user selected an app to run
 		if model, ok := finalModel.(*lsModel); ok && model.runApp != "" {
-			return runInstalledApp(model.runApp, nil, false)
+			return runInstalledApp(model.runApp, nil, false, nil)
 		}
 
 		return nil

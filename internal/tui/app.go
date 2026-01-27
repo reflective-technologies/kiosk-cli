@@ -28,6 +28,9 @@ type Model struct {
 	// App to execute after TUI exits (set when user clicks Run)
 	ExecApp string
 
+	// Optional handler for executing apps while the TUI is running.
+	RunAppHandler func(RunAppMsg) tea.Cmd
+
 	// View models - these will be set by the cmd package
 	// to avoid circular imports
 	HomeView        tea.Model
@@ -96,6 +99,11 @@ func (m *Model) SetPostInstallView(v tea.Model) {
 	m.PostInstallView = v
 }
 
+// SetRunAppHandler sets the handler for executing apps from within the TUI.
+func (m *Model) SetRunAppHandler(handler func(RunAppMsg) tea.Cmd) {
+	m.RunAppHandler = handler
+}
+
 // Init initializes the TUI application
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -118,6 +126,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		if msg.Width == 0 || msg.Height == 0 {
+			break
+		}
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.Width = msg.Width
@@ -155,6 +166,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.initCurrentView())
 
 	case RunAppMsg:
+		if m.RunAppHandler != nil {
+			return m, m.RunAppHandler(msg)
+		}
 		// Store the app key to execute after TUI exits
 		m.ExecApp = msg.AppKey
 		return m, tea.Quit
