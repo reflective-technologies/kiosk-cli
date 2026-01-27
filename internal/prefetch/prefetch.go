@@ -112,3 +112,15 @@ func (c *Cache) Reset() {
 	c.browseAppsErr = nil
 	c.browseLoaded = false
 }
+
+// ResetBrowseApps clears only the browse apps cache, allowing a fresh fetch.
+// This is useful when the previous fetch failed and the user wants to retry.
+func (c *Cache) ResetBrowseApps() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.browseApps = nil
+	c.browseNextCursor = nil
+	c.browseAppsErr = nil
+	c.browseLoaded = false
+}

@@ -114,24 +114,26 @@ func (m *BrowseModel) Init() tea.Cmd {
 	cache := prefetch.GetCache()
 	result := cache.GetBrowseApps()
 
-	if result.Loaded {
-		// Data was prefetched - apply it immediately (no loading state)
+	if result.Loaded && result.Err == nil {
+		// Data was prefetched successfully - apply it immediately (no loading state)
 		m.loading = false
-		if result.Err != nil {
-			m.err = result.Err
-			m.apps = nil
-		} else {
-			m.err = nil
-			m.apps = result.Apps
-			m.nextCursor = result.NextCursor
-			m.updateListItems()
-		}
+		m.err = nil
+		m.apps = result.Apps
+		m.nextCursor = result.NextCursor
+		m.updateListItems()
 		return nil
 	}
 
-	// Data not ready yet - show spinner and wait for prefetch to complete
+	// If there was a cached error, reset and start a fresh prefetch
+	if result.Loaded && result.Err != nil {
+		cache.ResetBrowseApps()
+		cache.StartBrowseAppsPrefetch()
+	}
+
+	// Data not ready yet (or retrying after error) - show spinner and wait for prefetch to complete
 	m.loading = true
 	m.apps = nil
+	m.err = nil
 	return tea.Batch(
 		m.spinner.Tick,
 		m.waitForPrefetch,
