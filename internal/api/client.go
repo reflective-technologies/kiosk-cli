@@ -37,6 +37,7 @@ type App struct {
 	GitUrl       string   `json:"gitUrl"`
 	Branch       string   `json:"branch,omitempty"`
 	KioskMd      string   `json:"kioskMd,omitempty"`
+	HowItWorks   string   `json:"howItWorks,omitempty"`
 	Creator      *Creator `json:"creator,omitempty"`
 	InstallCount int      `json:"installCount,omitempty"`
 	CreatedAt    string   `json:"createdAt,omitempty"`
@@ -52,6 +53,7 @@ type CreateAppRequest struct {
 	Subdirectory string `json:"subdirectory,omitempty"`
 	Screenshot   string `json:"screenshot,omitempty"`
 	Instructions string `json:"instructions,omitempty"`
+	HowItWorks   string `json:"howItWorks,omitempty"`
 }
 
 // UpdateAppRequest represents the payload for updating an app
