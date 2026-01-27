@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	"github.com/reflective-technologies/kiosk-cli/internal/prefetch"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 )
 
@@ -98,6 +99,10 @@ func (m *Model) SetPostInstallView(v tea.Model) {
 // Init initializes the TUI application
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
+
+	// Start prefetching browse apps in the background
+	// so they're ready when the user navigates to Browse Apps
+	prefetch.GetCache().StartBrowseAppsPrefetch()
 
 	// Initialize the home view
 	if m.HomeView != nil {

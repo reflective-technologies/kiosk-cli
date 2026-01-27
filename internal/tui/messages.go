@@ -97,8 +97,16 @@ type AuditCompleteMsg struct {
 
 // BrowseAppsLoadedMsg is sent when apps have been loaded from the API
 type BrowseAppsLoadedMsg struct {
-	Apps []api.App
-	Err  error
+	Apps       []api.App
+	NextCursor *string // cursor for next page, nil if no more pages
+	Err        error
+}
+
+// BrowseAppsPageLoadedMsg is sent when an additional page of apps has been loaded
+type BrowseAppsPageLoadedMsg struct {
+	Apps       []api.App
+	NextCursor *string // cursor for next page, nil if no more pages
+	Err        error
 }
 
 // BrowseAppSelectedMsg is sent when a user selects an app to install

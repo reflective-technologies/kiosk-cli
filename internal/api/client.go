@@ -69,6 +69,12 @@ type UpdateAppRequest struct {
 	HowItWorks   string `json:"howItWorks,omitempty"`
 }
 
+// PaginatedAppsResponse represents a paginated list of apps from the API
+type PaginatedAppsResponse struct {
+	Apps       []App   `json:"apps"`
+	NextCursor *string `json:"nextCursor"` // nil if no more pages
+}
+
 // NewClient creates a new API client without authentication
 func NewClient(baseURL string) *Client {
 	return &Client{
@@ -275,7 +281,7 @@ func (c *Client) GetPublishPrompt() (string, error) {
 	return string(body), nil
 }
 
-// ListApps fetches all published apps
+// ListApps fetches all published apps (legacy, non-paginated)
 func (c *Client) ListApps() ([]App, error) {
 	reqURL := fmt.Sprintf("%s/api/kiosk", c.BaseURL)
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
@@ -299,6 +305,38 @@ func (c *Client) ListApps() ([]App, error) {
 	}
 
 	return apps, nil
+}
+
+// ListAppsPaginated fetches apps with pagination support.
+// limit specifies the number of apps per page.
+// cursor is the pagination cursor (empty string for first page).
+func (c *Client) ListAppsPaginated(limit int, cursor string) (*PaginatedAppsResponse, error) {
+	reqURL := fmt.Sprintf("%s/api/kiosk?paginated=true&limit=%d", c.BaseURL, limit)
+	if cursor != "" {
+		reqURL += "&cursor=" + url.QueryEscape(cursor)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, handleAPIError(resp)
+	}
+
+	var result PaginatedAppsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
 }
 
 // CreateApp publishes a new app (requires authentication)
