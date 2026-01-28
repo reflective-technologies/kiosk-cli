@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/auth"
@@ -122,6 +124,7 @@ type ShowAppDetailMsg struct {
 	App         *api.App
 	IsInstalled bool
 	AppKey      string // for installed apps (e.g., "owner/repo")
+	HasSession  bool
 }
 
 // RunAppMsg is sent when user wants to run an app
@@ -147,6 +150,13 @@ type ExecPostInstallOptionMsg struct {
 	Prompt  string // Prompt to pass to Claude (if applicable)
 }
 
+// SessionSuspendedMsg is sent when a session is suspended (detached).
+type SessionSuspendedMsg struct {
+	AppKey  string
+	Message string
+	Timeout time.Duration
+}
+
 // Generic messages
 
 // ErrorMsg represents an error that occurred
@@ -162,6 +172,7 @@ type SuccessMsg struct {
 // StatusMsg is a transient status message
 type StatusMsg struct {
 	Message string
+	Timeout time.Duration
 }
 
 // ClearStatusMsg clears the current status message

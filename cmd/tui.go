@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
+	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/views"
 	"github.com/spf13/cobra"
@@ -53,6 +54,19 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	m.SetLoginView(&loginView)
 	m.SetAuditView(&auditView)
 
+	sessionStore, err := sessions.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load session store: %w", err)
+	}
+	m.SetRunAppHandler(func(msg tui.RunAppMsg) tea.Cmd {
+		return runAppSessionCmd(msg.AppKey, sessionStore)
+	})
+	m.SetSessionLookup(func(appKey string) bool {
+		_, ok := sessionStore.Get(appKey)
+		return ok
+	})
+	m.SetSessionDelete(sessionStore.Delete)
+
 	// Create the program with alternate screen buffer
 	p := tea.NewProgram(
 		&m,
@@ -98,11 +112,11 @@ func executeApp(appKey string) error {
 
 	// Check if app is installed
 	if idx.Has(key) {
-		return runInstalledApp(key, nil, false)
+		return runInstalledApp(key, nil, false, nil)
 	}
 
 	// App not installed - fetch from API and install
-	return installAndRunApp(cfg, idx, appKey, key, nil, false)
+	return installAndRunApp(cfg, idx, appKey, key, nil, false, nil)
 }
 
 // postInstallModel wraps the TUI model to start in post-install mode

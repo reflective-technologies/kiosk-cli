@@ -71,6 +71,7 @@ func (m *HelpModel) View() string {
 		{"↑/k", "Move up"},
 		{"↓/j", "Move down"},
 		{"enter", "Select / Confirm"},
+		{"ctrl+k", "Suspend Claude session"},
 		{"esc", "Go back"},
 		{"q", "Quit (from home)"},
 		{"/", "Filter list"},

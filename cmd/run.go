@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,8 +13,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/reflective-technologies/kiosk-cli/internal/api"
 	"github.com/reflective-technologies/kiosk-cli/internal/appindex"
+	"github.com/reflective-technologies/kiosk-cli/internal/claude"
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
 	kioskexec "github.com/reflective-technologies/kiosk-cli/internal/exec"
+	"github.com/reflective-technologies/kiosk-cli/internal/giturl"
+	"github.com/reflective-technologies/kiosk-cli/internal/sessions"
 	"github.com/reflective-technologies/kiosk-cli/internal/tui/styles"
 	"github.com/spf13/cobra"
 )
@@ -64,11 +68,11 @@ The app can be specified as:
 
 		// Check if app is installed
 		if idx.Has(key) {
-			return runInstalledApp(key, sandboxValues, safeFlag)
+			return runInstalledApp(key, sandboxValues, safeFlag, nil)
 		}
 
 		// App not installed - fetch from API and install
-		return installAndRunApp(cfg, idx, appArg, key, sandboxValues, safeFlag)
+		return installAndRunApp(cfg, idx, appArg, key, sandboxValues, safeFlag, nil)
 	},
 }
 
@@ -84,7 +88,7 @@ func normalizeAppKey(input string) string {
 }
 
 // runInstalledApp runs an already-installed app
-func runInstalledApp(key string, sandboxValues []string, safe bool) error {
+func runInstalledApp(key string, sandboxValues []string, safe bool, sessionCfg *claudeSessionConfig) error {
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid app key: %s", key)
@@ -120,11 +124,11 @@ func runInstalledApp(key string, sandboxValues []string, safe bool) error {
 	fmt.Print(lipgloss.NewStyle().Foreground(styles.Primary).Render(`  ┌───┐
  ┌┴───┴┐`))
 
-	return execClaude(appPath, prompt, safe)
+	return execClaudeSession(appPath, prompt, safe, key, sessionCfg)
 }
 
 // installAndRunApp fetches an app from the API and installs it
-func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string, safe bool) error {
+func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key string, sandboxValues []string, safe bool, sessionCfg *claudeSessionConfig) error {
 	client := api.NewClient(cfg.APIUrl)
 
 	// Fetch app metadata
@@ -142,7 +146,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 
 	// Determine the key (org/repo) from git URL if we only had appId
 	if !strings.Contains(key, "/") {
-		key = extractOrgRepo(app.GitUrl)
+		key = giturl.ExtractOrgRepo(app.GitUrl)
 		if key == "" {
 			key = app.ID // Fallback to just appId
 		}
@@ -191,27 +195,7 @@ func installAndRunApp(cfg *config.Config, idx *appindex.Index, appArg, key strin
 
 	fmt.Printf("Installing %s...\n", app.Name)
 	fmt.Print(logo)
-	return execClaude(appPath, prompt, safe)
-}
-
-// extractOrgRepo extracts org/repo from a GitHub URL
-func extractOrgRepo(gitUrl string) string {
-	// Handle https://github.com/org/repo or https://github.com/org/repo.git
-	gitUrl = strings.TrimSuffix(gitUrl, ".git")
-
-	for _, prefix := range []string{
-		"https://github.com/",
-		"https://gitlab.com/",
-		"https://bitbucket.org/",
-		"git@github.com:",
-		"git@gitlab.com:",
-		"git@bitbucket.org:",
-	} {
-		if strings.HasPrefix(gitUrl, prefix) {
-			return strings.TrimPrefix(gitUrl, prefix)
-		}
-	}
-	return ""
+	return execClaudeSession(appPath, prompt, safe, key, sessionCfg)
 }
 
 type updateInfo struct {
@@ -378,6 +362,12 @@ func gitRun(dir string, args ...string) error {
 	return nil
 }
 
+type claudeSessionConfig struct {
+	Store     *sessions.Store
+	DetachKey byte
+	IO        claude.SessionIO
+}
+
 // execClaude runs claude in the given directory with the given prompt
 func execClaude(dir, prompt string, safe bool) error {
 	permissionMode := "bypassPermissions"
@@ -387,6 +377,60 @@ func execClaude(dir, prompt string, safe bool) error {
 
 	cmd := kioskexec.ClaudeCmd("--permission-mode", permissionMode, prompt)
 	return runCommand(cmd, dir)
+}
+
+func execClaudeSession(dir, prompt string, safe bool, appKey string, sessionCfg *claudeSessionConfig) error {
+	if sessionCfg == nil || sessionCfg.Store == nil {
+		return execClaude(dir, prompt, safe)
+	}
+
+	permissionMode := "bypassPermissions"
+	if safe {
+		permissionMode = "default"
+	}
+
+	sessionID, created, err := sessionCfg.Store.GetOrCreate(appKey)
+	if err != nil {
+		return err
+	}
+
+	args := []string{"--permission-mode", permissionMode}
+	if created {
+		args = append(args, "--session-id", sessionID)
+	} else {
+		args = append(args, "--resume", sessionID)
+	}
+	if prompt != "" {
+		args = append(args, prompt)
+	}
+
+	cmd := kioskexec.ClaudeCmd(args...)
+	cmd.Dir = dir
+
+	runErr := claude.RunWithPTY(cmd, claude.SessionOptions{
+		IO:        sessionCfg.IO,
+		DetachKey: sessionCfg.DetachKey,
+	})
+	if runErr != nil && created && shouldClearSession(runErr) {
+		if clearErr := sessionCfg.Store.Delete(appKey); clearErr != nil {
+			return errors.Join(runErr, fmt.Errorf("failed to clear session: %w", clearErr))
+		}
+	}
+	return runErr
+}
+
+func shouldClearSession(err error) bool {
+	if errors.Is(err, claude.ErrDetached) {
+		return false
+	}
+
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+
+	var pathErr *os.PathError
+	return errors.As(err, &pathErr)
 }
 
 func init() {

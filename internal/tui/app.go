@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,6 +28,15 @@ type Model struct {
 
 	// App to execute after TUI exits (set when user clicks Run)
 	ExecApp string
+
+	// Optional handler for executing apps while the TUI is running.
+	RunAppHandler func(RunAppMsg) tea.Cmd
+
+	// Optional session lookup for app detail rendering.
+	SessionLookup func(appKey string) bool
+
+	// Optional session delete for cleanup when apps are removed.
+	SessionDelete func(appKey string) error
 
 	// View models - these will be set by the cmd package
 	// to avoid circular imports
@@ -96,6 +106,21 @@ func (m *Model) SetPostInstallView(v tea.Model) {
 	m.PostInstallView = v
 }
 
+// SetRunAppHandler sets the handler for executing apps from within the TUI.
+func (m *Model) SetRunAppHandler(handler func(RunAppMsg) tea.Cmd) {
+	m.RunAppHandler = handler
+}
+
+// SetSessionLookup sets the session lookup callback for app detail rendering.
+func (m *Model) SetSessionLookup(fn func(appKey string) bool) {
+	m.SessionLookup = fn
+}
+
+// SetSessionDelete sets the session delete callback for cleanup when apps are removed.
+func (m *Model) SetSessionDelete(fn func(appKey string) error) {
+	m.SessionDelete = fn
+}
+
 // Init initializes the TUI application
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -118,6 +143,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		if msg.Width == 0 || msg.Height == 0 {
+			break
+		}
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.Width = msg.Width
@@ -149,12 +177,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Navigate to app detail and pass the app data
 		m.navigateTo(ViewAppDetail)
 		if m.AppDetailView != nil {
+			if msg.HasSession == false && msg.AppKey != "" && m.SessionLookup != nil {
+				msg.HasSession = m.SessionLookup(msg.AppKey)
+			}
 			// Update the detail view with the app info
 			m.AppDetailView, _ = m.AppDetailView.Update(msg)
 		}
 		cmds = append(cmds, m.initCurrentView())
 
 	case RunAppMsg:
+		if m.RunAppHandler != nil {
+			return m, m.RunAppHandler(msg)
+		}
 		// Store the app key to execute after TUI exits
 		m.ExecApp = msg.AppKey
 		return m, tea.Quit
@@ -178,9 +212,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StatusMsg:
 		m.status = msg.Message
+		if msg.Timeout > 0 {
+			cmds = append(cmds, tea.Tick(msg.Timeout, func(time.Time) tea.Msg {
+				return ClearStatusMsg{}
+			}))
+		}
 
 	case ClearStatusMsg:
 		m.status = ""
+
+	case SessionSuspendedMsg:
+		m.goToAppListRoot()
+		m.status = msg.Message
+		cmds = append(cmds, m.initCurrentView())
+		if msg.Timeout > 0 {
+			cmds = append(cmds, tea.Tick(msg.Timeout, func(time.Time) tea.Msg {
+				return ClearStatusMsg{}
+			}))
+		}
 	}
 
 	// Update the current view
@@ -241,6 +290,11 @@ func (m *Model) goBack() {
 		m.currentView = m.viewStack[len(m.viewStack)-1]
 		m.viewStack = m.viewStack[:len(m.viewStack)-1]
 	}
+}
+
+func (m *Model) goToAppListRoot() {
+	m.currentView = ViewAppList
+	m.viewStack = []ViewType{ViewHome}
 }
 
 func (m Model) initCurrentView() tea.Cmd {
@@ -407,6 +461,7 @@ func (m *Model) View() string {
 
 // deleteApp removes an app from the index and filesystem
 func (m *Model) deleteApp(key string) tea.Cmd {
+	sessionDelete := m.SessionDelete
 	return func() tea.Msg {
 		// Load index
 		idx, err := appindex.Load()
@@ -434,6 +489,11 @@ func (m *Model) deleteApp(key string) tea.Cmd {
 		idx.Remove(key)
 		if err := appindex.Save(idx); err != nil {
 			return AppRemovedMsg{Key: key, Err: err}
+		}
+
+		// Clean up associated session
+		if sessionDelete != nil {
+			_ = sessionDelete(key)
 		}
 
 		return AppRemovedMsg{Key: key, Err: nil}

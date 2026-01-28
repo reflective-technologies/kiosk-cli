@@ -9,6 +9,7 @@ const (
 	kioskDirName   = ".kiosk"
 	appsDirName    = "apps"
 	configFileName = "config.json"
+	sessionsFile   = "sessions.json"
 )
 
 // KioskDir returns the path to ~/.kiosk
@@ -34,4 +35,9 @@ func AppPath(org, repo string) string {
 // ConfigPath returns the path to ~/.kiosk/config.json
 func ConfigPath() string {
 	return filepath.Join(KioskDir(), configFileName)
+}
+
+// SessionsPath returns the path to ~/.kiosk/sessions.json
+func SessionsPath() string {
+	return filepath.Join(KioskDir(), sessionsFile)
 }
