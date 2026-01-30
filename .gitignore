@@ -1,5 +1,7 @@
 # Binary
 kiosk
+!skills/kiosk/
+!skills/kiosk/**
 
 # IDE
 .idea/

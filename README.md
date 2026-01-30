@@ -56,8 +56,11 @@ kiosk logout
 ### Publish your own app
 
 ```bash
-# Initialize a new kiosk app project (creates Kiosk.md)
-kiosk new
+# Create a new kiosk workspace project and start requirements gathering
+kiosk new [project-name]
+
+# Create or update KIOSK.md for the current repo
+kiosk init
 
 # Publish the current repo to kiosk.app (requires login)
 kiosk publish
