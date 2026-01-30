@@ -106,17 +106,29 @@ func initWorkspaceGitRepo(projectDir string) error {
 }
 
 func installKioskSkill(projectDir string) error {
-	paths := []string{
-		filepath.Join(projectDir, ".skills", "kiosk", "SKILL.md"),
-		filepath.Join(projectDir, ".claude", "skills", "kiosk", "SKILL.md"),
+	dirs := []string{
+		filepath.Join(projectDir, ".skills", "kiosk"),
+		filepath.Join(projectDir, ".claude", "skills", "kiosk"),
 	}
 
-	for _, path := range paths {
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	files := []struct {
+		name    string
+		content string
+	}{
+		{name: "SKILL.md", content: skills.KioskSkill},
+		{name: "init-prompt.md", content: skills.KioskInitPrompt},
+		{name: "publish-prompt.md", content: skills.KioskPublishPrompt},
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create skills directory: %w", err)
 		}
-		if err := os.WriteFile(path, []byte(skills.KioskSkill), 0644); err != nil {
-			return fmt.Errorf("failed to write kiosk skill: %w", err)
+		for _, file := range files {
+			path := filepath.Join(dir, file.name)
+			if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+				return fmt.Errorf("failed to write kiosk skill file %s: %w", file.name, err)
+			}
 		}
 	}
 
