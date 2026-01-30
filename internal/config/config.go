@@ -64,6 +64,7 @@ func EnsureInitialized() error {
 	dirs := []string{
 		KioskDir(),
 		AppsDir(),
+		WorkspaceDir(),
 	}
 
 	for _, dir := range dirs {

@@ -19,7 +19,16 @@ type Store struct {
 
 // Load reads the session store from disk (or initializes an empty store if missing).
 func Load() (*Store, error) {
-	path := config.SessionsPath()
+	return LoadFromPath(config.SessionsPath())
+}
+
+// LoadWorkspace reads the workspace session store from disk.
+func LoadWorkspace() (*Store, error) {
+	return LoadFromPath(config.WorkspaceSessionsPath())
+}
+
+// LoadFromPath reads the session store from the given path.
+func LoadFromPath(path string) (*Store, error) {
 	sessions := make(map[string]string)
 
 	data, err := os.ReadFile(path)
