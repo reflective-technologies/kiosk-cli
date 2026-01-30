@@ -411,6 +411,9 @@ func execClaudeSession(dir, prompt string, safe bool, appKey string, sessionCfg 
 		IO:        sessionCfg.IO,
 		DetachKey: sessionCfg.DetachKey,
 	})
+	if errors.Is(runErr, claude.ErrDetached) {
+		return nil
+	}
 	if runErr != nil && created && shouldClearSession(runErr) {
 		if clearErr := sessionCfg.Store.Delete(appKey); clearErr != nil {
 			return errors.Join(runErr, fmt.Errorf("failed to clear session: %w", clearErr))
