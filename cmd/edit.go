@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/reflective-technologies/kiosk-cli/internal/config"
@@ -52,7 +51,7 @@ If a project name is provided, it will open that project directly.`,
 			projectName = selected
 		}
 
-		projectDir := filepath.Join(workspaceDir, projectName)
+		projectDir := config.WorkspacePath(projectName)
 		info, err := os.Stat(projectDir)
 		if err != nil {
 			if os.IsNotExist(err) {

@@ -363,9 +363,10 @@ func gitRun(dir string, args ...string) error {
 }
 
 type claudeSessionConfig struct {
-	Store     *sessions.Store
-	DetachKey byte
-	IO        claude.SessionIO
+	Store             *sessions.Store
+	DetachKey         byte
+	IO                claude.SessionIO
+	SuppressDetachErr bool
 }
 
 // execClaude runs claude in the given directory with the given prompt
@@ -412,7 +413,10 @@ func execClaudeSession(dir, prompt string, safe bool, appKey string, sessionCfg 
 		DetachKey: sessionCfg.DetachKey,
 	})
 	if errors.Is(runErr, claude.ErrDetached) {
-		return nil
+		if sessionCfg.SuppressDetachErr {
+			return nil
+		}
+		return runErr
 	}
 	if runErr != nil && created && shouldClearSession(runErr) {
 		if clearErr := sessionCfg.Store.Delete(appKey); clearErr != nil {

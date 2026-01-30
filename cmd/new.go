@@ -56,7 +56,7 @@ for initial requirements gathering.`,
 			return err
 		}
 
-		projectDir := filepath.Join(workspaceDir, projectName)
+		projectDir := config.WorkspacePath(projectName)
 		if _, err := os.Stat(projectDir); err == nil {
 			return fmt.Errorf("project already exists at %s", projectDir)
 		} else if !os.IsNotExist(err) {
