@@ -119,10 +119,10 @@ func (m *HelpModel) View() string {
 
 	linkStyle := lipgloss.NewStyle().Foreground(styles.Primary).Underline(true)
 	b.WriteString("  Documentation: ")
-	b.WriteString(linkStyle.Render("https://kiosk.dev/docs"))
+	b.WriteString(linkStyle.Render("https://kiosk.app/docs"))
 	b.WriteString("\n")
 	b.WriteString("  Report Issues: ")
-	b.WriteString(linkStyle.Render("https://github.com/kiosk-dev/cli/issues"))
+	b.WriteString(linkStyle.Render("https://github.com/reflective-technologies/kiosk-cli/issues"))
 	b.WriteString("\n\n")
 
 	// Help footer
